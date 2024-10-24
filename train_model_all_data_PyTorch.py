@@ -18,8 +18,8 @@ import os
 import numpy as np
 import sys
 
-# Redirect output to a file
-output_file = open("output_log.txt", "w")
+# Redirect output to a file in append mode
+output_file = open("output_log.txt", "a")
 sys.stdout = output_file
 
 
@@ -63,7 +63,7 @@ def main():
         label_encoders[col] = le
 
     # Split Features and Target
-    X = df.drop("loan_status", axis=1)
+    X = df.drop(["loan_status", "id"], axis=1)
     y = df["loan_status"]
 
     # Standardize the Features
@@ -109,6 +109,8 @@ def main():
         start_model_time = time.time()
 
         print(f"\nTraining model with {neurons} neurons in the hidden layer...")
+        sys.stdout.flush()  # Flush to ensure immediate write to file
+
         model = MLP(input_size=X_train.shape[1], hidden_size=neurons)
         criterion = nn.BCELoss()  # Binary Cross-Entropy Loss
         optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -120,7 +122,7 @@ def main():
         val_loss_history = []
 
         # Training loop with early stopping
-        num_epochs = 5
+        num_epochs = 2000
         for epoch in range(num_epochs):
             model.train()
             for X_batch, y_batch in train_loader:
@@ -153,14 +155,16 @@ def main():
             train_loss_history.append(loss.item())
 
             # Print progress
-            if epoch % 50 == 0:
+            if epoch % 50 == 0 or epoch == num_epochs - 1:
                 print(
                     f"Epoch [{epoch}/{num_epochs}], Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}"
                 )
+                sys.stdout.flush()  # Flush to ensure immediate write to file
 
             # Break if early stopping condition is met
             if patience_counter >= patience:
                 print(f"Early stopping at epoch {epoch} for {neurons} neurons.")
+                sys.stdout.flush()  # Flush to ensure immediate write to file
                 break
 
         # Evaluate the model on the test set
@@ -171,6 +175,7 @@ def main():
         print(
             f"Time taken for {neurons} neurons: {time.time() - start_model_time:.2f} seconds"
         )
+        sys.stdout.flush()  # Flush to ensure immediate write to file
 
         # Save training and validation history
         history_file = os.path.join(output_dir, f"training_history_{neurons}.json")
@@ -209,6 +214,7 @@ def main():
         f"\nBest accuracy achieved: {best_accuracy * 100:.2f}% with {best_neurons} neurons."
     )
     print(f"Total script runtime: {time.time() - start_time:.2f} seconds")
+    sys.stdout.flush()  # Flush to ensure immediate write to file
 
 
 if __name__ == "__main__":
