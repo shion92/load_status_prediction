@@ -44,14 +44,15 @@ def load_and_evaluate_model(model_file, input_size, hidden_size, X_data, y_data)
 
     # Convert data to PyTorch tensors
     X_tensor = torch.tensor(X_data, dtype=torch.float32)
+    y_tensor = torch.tensor(y_data.values, dtype=torch.float32)
 
     # Make predictions
     with torch.no_grad():
         y_pred = model(X_tensor)
-        y_pred = (y_pred >= 0.5).float().numpy().flatten()  # Apply threshold
+        y_pred = (y_pred >= 0.5).float()  # Apply threshold
 
     # Calculate accuracy
-    accuracy = accuracy_score(y_data, y_pred) * 100
+    accuracy = (y_pred == y_tensor).float().mean().item()
 
     # Generate classification report
     class_report = classification_report(
@@ -59,7 +60,7 @@ def load_and_evaluate_model(model_file, input_size, hidden_size, X_data, y_data)
     )
 
     print(f"Model: {model_file}")
-    print(f"Accuracy: {accuracy:.2f}%")
+    print(f"Accuracy: {accuracy * 100:.2f}%")
     print("Classification Report:\n", class_report)
 
 
