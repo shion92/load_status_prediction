@@ -15,6 +15,12 @@ from torch.utils.data import DataLoader, TensorDataset
 import time
 import json
 import os
+import numpy as np
+import sys
+
+# Redirect output to a file
+output_file = open("output_log.txt", "w")
+sys.stdout = output_file
 
 
 # Define the MLP Model with PyTorch
@@ -26,7 +32,7 @@ class MLP(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.sigmoid(self.hidden(x))  # Using ReLU for better performance
+        x = self.sigmoid(self.hidden(x))  # Using Sigmoid for simplicity
         x = self.sigmoid(self.output(x))
         return x
 
@@ -81,13 +87,17 @@ def main():
         train_dataset,
         batch_size=32,
         shuffle=True,
-        num_workers=4,  
+        num_workers=4,  # Set num_workers to 0 for compatibility
     )
 
     # Directory for saving outputs
     output_dir = "output_results"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    # Define early stopping parameters
+    patience = 10  # Number of epochs to wait for improvement
+    min_delta = 0.001  # Minimum change to qualify as improvement
 
     # Train and Evaluate the Model with Different Hidden Neurons
     best_accuracy = 0
@@ -103,14 +113,16 @@ def main():
         criterion = nn.BCELoss()  # Binary Cross-Entropy Loss
         optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-        # Initialize lists to store training history
+        # Initialize variables for early stopping
+        best_val_loss = np.inf
+        patience_counter = 0
         train_loss_history = []
-        train_accuracy_history = []
+        val_loss_history = []
 
-        # Training the model
-        num_epochs = 100
+        # Training loop with early stopping
+        num_epochs = 5
         for epoch in range(num_epochs):
-            print(epoch)
+            model.train()
             for X_batch, y_batch in train_loader:
                 optimizer.zero_grad()  # Reset gradients
                 y_pred = model(X_batch)
@@ -118,28 +130,53 @@ def main():
                 loss.backward()  # Backpropagation
                 optimizer.step()  # Update weights
 
-            # Store training loss and accuracy for each epoch
+            # Calculate validation loss after each epoch
+            model.eval()
             with torch.no_grad():
-                train_loss_history.append(loss.item())
-                train_accuracy = ((y_pred >= 0.5) == y_batch).float().mean().item()
-                train_accuracy_history.append(train_accuracy)
+                y_test_pred = model(X_test_tensor)
+                val_loss = criterion(y_test_pred, y_test_tensor).item()
+                val_loss_history.append(val_loss)
+
+                # Check for early stopping condition
+                if val_loss < best_val_loss - min_delta:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                    # Save the best model state
+                    torch.save(
+                        model.state_dict(),
+                        os.path.join(output_dir, f"model_{neurons}.pt"),
+                    )
+                else:
+                    patience_counter += 1
+
+            # Store training loss
+            train_loss_history.append(loss.item())
+
+            # Print progress
+            if epoch % 50 == 0:
+                print(
+                    f"Epoch [{epoch}/{num_epochs}], Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}"
+                )
+
+            # Break if early stopping condition is met
+            if patience_counter >= patience:
+                print(f"Early stopping at epoch {epoch} for {neurons} neurons.")
+                break
 
         # Evaluate the model on the test set
-        with torch.no_grad():
-            y_test_pred = model(X_test_tensor)
-            y_test_pred = (y_test_pred >= 0.5).float()  # Threshold at 0.5
-            accuracy = (y_test_pred == y_test_tensor).float().mean().item()
+        y_test_pred = (y_test_pred >= 0.5).float()  # Threshold at 0.5
+        accuracy = (y_test_pred == y_test_tensor).float().mean().item()
 
         print(f"Accuracy with {neurons} neurons: {accuracy * 100:.2f}%")
         print(
             f"Time taken for {neurons} neurons: {time.time() - start_model_time:.2f} seconds"
         )
 
-        # Save training history
+        # Save training and validation history
         history_file = os.path.join(output_dir, f"training_history_{neurons}.json")
         with open(history_file, "w") as f:
             json.dump(
-                {"loss": train_loss_history, "accuracy": train_accuracy_history},
+                {"train_loss": train_loss_history, "val_loss": val_loss_history},
                 f,
                 indent=4,
             )
@@ -176,3 +213,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    # Close the output file at the end
+    output_file.close()

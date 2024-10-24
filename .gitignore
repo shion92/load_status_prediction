@@ -166,3 +166,5 @@ cython_debug/
 .pdf 
 data/
 output_results/
+.DS_Store
+.vscode/settings.json
