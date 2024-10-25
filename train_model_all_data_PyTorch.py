@@ -96,8 +96,8 @@ def main():
         os.makedirs(output_dir)
 
     # Define early stopping parameters
-    patience = 10  # Number of epochs to wait for improvement
-    min_delta = 0.001  # Minimum change to qualify as improvement
+    patience = 20  # Number of epochs to wait for improvement
+    min_delta = 0.0001  # Minimum change to qualify as improvement
 
     # Train and Evaluate the Model with Different Hidden Neurons
     best_accuracy = 0
@@ -122,7 +122,7 @@ def main():
         val_loss_history = []
 
         # Training loop with early stopping
-        num_epochs = 2000
+        num_epochs = 1000
         for epoch in range(num_epochs):
             model.train()
             for X_batch, y_batch in train_loader:

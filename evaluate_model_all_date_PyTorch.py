@@ -1,20 +1,13 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns  # Adding seaborn for better visualization
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import (
-    classification_report,
-    confusion_matrix,
-    ConfusionMatrixDisplay,
-)
+from sklearn.metrics import classification_report
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-import time
-import json
 import os
+import json
 
 
 # Define the MLP model structure to match the saved models
@@ -29,6 +22,28 @@ class MLP(nn.Module):
         x = self.sigmoid(self.hidden(x))
         x = self.sigmoid(self.output(x))
         return x
+
+
+def plot_loss(train_loss, val_loss, neurons):
+    """
+    Plot training and validation loss for each epoch.
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_loss, label="Train Loss")
+    plt.plot(val_loss, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title(f"Training and Validation Loss for {neurons} Neurons")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Save the plot
+    output_dir = "output_results"
+    plot_file = os.path.join(output_dir, f"loss_plot_{neurons}_neurons.png")
+    plt.savefig(plot_file)
+    plt.close()
+    print(f"Loss plot saved to: {plot_file}")
 
 
 def load_and_evaluate_model(model_file, input_size, hidden_size, X_data, y_data):
@@ -87,7 +102,7 @@ def main():
         label_encoders[col] = le
 
     # Split Features and Target
-    X = df.drop("loan_status", axis=1)
+    X = df.drop(["loan_status", "id"], axis=1)
     y = df["loan_status"]
 
     # Standardize the Features
@@ -100,14 +115,25 @@ def main():
     )
 
     # Define the hidden neuron options used in training
-    neuron_options = [5, 10, 15, 20]
+    neuron_options = [5, 9, 10, 11, 15, 20]
 
     # Directory where models are saved
     output_dir = "output_results"
 
-    # Evaluate each model on the test data
+    # Evaluate each model on the test data and plot losses
     for neurons in neuron_options:
-        model_file = f"{output_dir}/model_{neurons}_neurons.pt"
+        model_file = f"{output_dir}/model_{neurons}.pt"
+        history_file = os.path.join(output_dir, f"training_history_{neurons}.json")
+
+        # Load training and validation loss history
+        if os.path.exists(history_file):
+            with open(history_file, "r") as f:
+                history = json.load(f)
+                train_loss = history.get("train_loss", [])
+                val_loss = history.get("val_loss", [])
+
+                # Plot the training and validation loss
+                plot_loss(train_loss, val_loss, neurons)
 
         # Evaluate on test data
         print(f"\nEvaluating model with {neurons} neurons on test data...")
