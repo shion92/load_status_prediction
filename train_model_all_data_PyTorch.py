@@ -1,6 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns  # Adding seaborn for better visualization
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import (
@@ -32,9 +32,18 @@ class MLP(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.sigmoid(self.hidden(x))  # Using Sigmoid for simplicity
+        x = self.sigmoid(self.hidden(x))
         x = self.sigmoid(self.output(x))
         return x
+
+
+def calculate_accuracy(y_pred, y_true):
+    # Calculate accuracy: compare predicted labels to true labels
+    y_pred_labels = (y_pred >= 0.5).float()  # Convert probabilities to 0/1
+    print()
+    correct = (y_pred_labels == y_true).float().sum()  # Count correct predictions
+    accuracy = correct / y_true.shape[0]
+    return accuracy
 
 
 def main():
@@ -85,7 +94,7 @@ def main():
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=32,
+        batch_size=128,
         shuffle=True,
         num_workers=4,  # Set num_workers to 0 for compatibility
     )
@@ -96,13 +105,13 @@ def main():
         os.makedirs(output_dir)
 
     # Define early stopping parameters
-    patience = 20  # Number of epochs to wait for improvement
+    patience = 50  # Number of epochs to wait for improvement
     min_delta = 0.0001  # Minimum change to qualify as improvement
 
     # Train and Evaluate the Model with Different Hidden Neurons
     best_accuracy = 0
     best_neurons = 0
-    neuron_options = [5, 9, 10, 11, 15, 20]
+    neuron_options = [5, 10, 15, 20]
 
     for neurons in neuron_options:
         # Start timing for the current model
@@ -120,11 +129,14 @@ def main():
         patience_counter = 0
         train_loss_history = []
         val_loss_history = []
+        train_acc_history = []
+        val_acc_history = []
 
         # Training loop with early stopping
         num_epochs = 1000
         for epoch in range(num_epochs):
             model.train()
+            epoch_train_acc = 0
             for X_batch, y_batch in train_loader:
                 optimizer.zero_grad()  # Reset gradients
                 y_pred = model(X_batch)
@@ -132,12 +144,24 @@ def main():
                 loss.backward()  # Backpropagation
                 optimizer.step()  # Update weights
 
-            # Calculate validation loss after each epoch
+                # Calculate training accuracy
+                epoch_train_acc += calculate_accuracy(y_pred, y_batch).item()
+
+            # Average training accuracy for the epoch
+            epoch_train_acc /= len(train_loader)
+            train_acc_history.append(epoch_train_acc)
+
+            # Calculate validation loss and accuracy after each epoch
             model.eval()
             with torch.no_grad():
                 y_test_pred = model(X_test_tensor)
                 val_loss = criterion(y_test_pred, y_test_tensor).item()
                 val_loss_history.append(val_loss)
+
+                # Calculate validation accuracy
+                val_acc_history.append(
+                    calculate_accuracy(y_test_pred, y_test_tensor).item()
+                )
 
                 # Check for early stopping condition
                 if val_loss < best_val_loss - min_delta:
@@ -157,14 +181,16 @@ def main():
             # Print progress
             if epoch % 50 == 0 or epoch == num_epochs - 1:
                 print(
-                    f"Epoch [{epoch}/{num_epochs}], Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}"
+                    f"Epoch [{epoch}/{num_epochs}], "
+                    f"Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}, "
+                    f"Train Acc: {epoch_train_acc * 100:.2f}%"
                 )
-                sys.stdout.flush()  # Flush to ensure immediate write to file
+                sys.stdout.flush()
 
             # Break if early stopping condition is met
             if patience_counter >= patience:
                 print(f"Early stopping at epoch {epoch} for {neurons} neurons.")
-                sys.stdout.flush()  # Flush to ensure immediate write to file
+                sys.stdout.flush()
                 break
 
         # Evaluate the model on the test set
@@ -175,13 +201,17 @@ def main():
         print(
             f"Time taken for {neurons} neurons: {time.time() - start_model_time:.2f} seconds"
         )
-        sys.stdout.flush()  # Flush to ensure immediate write to file
+        sys.stdout.flush()
 
         # Save training and validation history
         history_file = os.path.join(output_dir, f"training_history_{neurons}.json")
         with open(history_file, "w") as f:
             json.dump(
-                {"train_loss": train_loss_history, "val_loss": val_loss_history},
+                {
+                    "train_loss": train_loss_history,
+                    "val_loss": val_loss_history,
+                    "train_accuracy": train_acc_history,
+                },
                 f,
                 indent=4,
             )
@@ -190,31 +220,13 @@ def main():
         if accuracy > best_accuracy:
             best_accuracy = accuracy
             best_neurons = neurons
-            # Save the best model
-            torch.save(model.state_dict(), os.path.join(output_dir, "best_model.pt"))
-
-        # Classification report and confusion matrix
-        class_report = classification_report(y_test, y_test_pred, output_dict=True)
-        report_file = os.path.join(output_dir, f"classification_report_{neurons}.json")
-        with open(report_file, "w") as f:
-            json.dump(class_report, f, indent=4)
-
-        conf_mat = confusion_matrix(y_test, y_test_pred)
-        print(f"Confusion Matrix for {neurons} neurons:\n", conf_mat)
-
-        # Save confusion matrix as an image
-        plt.figure()
-        ConfusionMatrixDisplay.from_predictions(y_test, y_test_pred, cmap="Blues")
-        plt.title(f"Confusion Matrix for {neurons} Neurons")
-        plt.savefig(os.path.join(output_dir, f"confusion_matrix_{neurons}.png"))
-        plt.close()
 
     # Display total runtime
     print(
         f"\nBest accuracy achieved: {best_accuracy * 100:.2f}% with {best_neurons} neurons."
     )
     print(f"Total script runtime: {time.time() - start_time:.2f} seconds")
-    sys.stdout.flush()  # Flush to ensure immediate write to file
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":

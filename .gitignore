@@ -168,3 +168,4 @@ data/
 output_results/
 .DS_Store
 .vscode/settings.json
+test/test_calculate_accuracy.py
