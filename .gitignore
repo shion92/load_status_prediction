@@ -170,5 +170,3 @@ output_results/
 .vscode/settings.json
 test/test_calculate_accuracy.py
 output_log.txt
-output_log.txt
-output_log.txt
