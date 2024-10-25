@@ -40,7 +40,6 @@ class MLP(nn.Module):
 def calculate_accuracy(y_pred, y_true):
     # Calculate accuracy: compare predicted labels to true labels
     y_pred_labels = (y_pred >= 0.5).float()  # Convert probabilities to 0/1
-    print()
     correct = (y_pred_labels == y_true).float().sum()  # Count correct predictions
     accuracy = correct / y_true.shape[0]
     return accuracy
@@ -94,7 +93,7 @@ def main():
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=128,
+        batch_size=512,
         shuffle=True,
         num_workers=4,  # Set num_workers to 0 for compatibility
     )
@@ -105,13 +104,13 @@ def main():
         os.makedirs(output_dir)
 
     # Define early stopping parameters
-    patience = 50  # Number of epochs to wait for improvement
+    patience = 100  # Number of epochs to wait for improvement
     min_delta = 0.0001  # Minimum change to qualify as improvement
 
     # Train and Evaluate the Model with Different Hidden Neurons
     best_accuracy = 0
     best_neurons = 0
-    neuron_options = [5, 10, 15, 20]
+    neuron_options = [15]
 
     for neurons in neuron_options:
         # Start timing for the current model
@@ -122,7 +121,7 @@ def main():
 
         model = MLP(input_size=X_train.shape[1], hidden_size=neurons)
         criterion = nn.BCELoss()  # Binary Cross-Entropy Loss
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
         # Initialize variables for early stopping
         best_val_loss = np.inf
@@ -144,14 +143,15 @@ def main():
                 loss.backward()  # Backpropagation
                 optimizer.step()  # Update weights
 
-                # Calculate training accuracy
-                epoch_train_acc += calculate_accuracy(y_pred, y_batch).item()
+                # Calculate batch accuracy
+                batch_train_acc = calculate_accuracy(y_pred, y_batch).item()
+                epoch_train_acc += batch_train_acc
 
             # Average training accuracy for the epoch
             epoch_train_acc /= len(train_loader)
             train_acc_history.append(epoch_train_acc)
 
-            # Calculate validation loss and accuracy after each epoch
+            # Calculate validation loss and accuracy
             model.eval()
             with torch.no_grad():
                 y_test_pred = model(X_test_tensor)
@@ -159,9 +159,8 @@ def main():
                 val_loss_history.append(val_loss)
 
                 # Calculate validation accuracy
-                val_acc_history.append(
-                    calculate_accuracy(y_test_pred, y_test_tensor).item()
-                )
+                val_acc = calculate_accuracy(y_test_pred, y_test_tensor).item()
+                val_acc_history.append(val_acc)
 
                 # Check for early stopping condition
                 if val_loss < best_val_loss - min_delta:
@@ -183,7 +182,7 @@ def main():
                 print(
                     f"Epoch [{epoch}/{num_epochs}], "
                     f"Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}, "
-                    f"Train Acc: {epoch_train_acc * 100:.2f}%"
+                    f"Train Acc: {epoch_train_acc * 100:.2f}%, Val Acc: {val_acc * 100:.2f}%"
                 )
                 sys.stdout.flush()
 
@@ -211,6 +210,7 @@ def main():
                     "train_loss": train_loss_history,
                     "val_loss": val_loss_history,
                     "train_accuracy": train_acc_history,
+                    "val_accuracy": val_acc_history,
                 },
                 f,
                 indent=4,

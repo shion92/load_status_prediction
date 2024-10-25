@@ -46,6 +46,28 @@ def plot_loss(train_loss, val_loss, neurons):
     print(f"Loss plot saved to: {plot_file}")
 
 
+def plot_accuracy(train_accuracy, val_accuracy, neurons):
+    """
+    Plot training and validation loss for each epoch.
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_accuracy, label="Train Loss")
+    plt.plot(val_accuracy, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title(f"Training and Validation Accuracy for {neurons} Neurons")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Save the plot
+    output_dir = "output_results"
+    plot_file = os.path.join(output_dir, f"accuracy_plot_{neurons}_neurons.png")
+    plt.savefig(plot_file)
+    plt.close()
+    print(f"Accuracy plot saved to: {plot_file}")
+
+
 def load_and_evaluate_model(model_file, input_size, hidden_size, X_data, y_data):
     """
     Load the model from a .pt file and evaluate it on the provided data.
@@ -115,7 +137,7 @@ def main():
     )
 
     # Define the hidden neuron options used in training
-    neuron_options = [5, 9, 10, 11, 15, 20]
+    neuron_options = [15]
 
     # Directory where models are saved
     output_dir = "output_results"
@@ -131,9 +153,12 @@ def main():
                 history = json.load(f)
                 train_loss = history.get("train_loss", [])
                 val_loss = history.get("val_loss", [])
+                train_accuracy = history.get("train_accuracy", [])
+                val_accuracy = history.get("val_accuracy", [])
 
                 # Plot the training and validation loss
                 plot_loss(train_loss, val_loss, neurons)
+                plot_accuracy(train_accuracy, val_accuracy, neurons)
 
         # Evaluate on test data
         print(f"\nEvaluating model with {neurons} neurons on test data...")
