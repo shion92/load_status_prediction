@@ -20,7 +20,7 @@ import numpy as np
 import sys
 
 # Redirect output to a file in append mode
-output_file = open("output_log.txt", "a")
+output_file = open("output_result/output_log.txt", "a")
 sys.stdout = output_file
 
 
@@ -102,7 +102,7 @@ def main():
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=128,
+        batch_size=512,
         shuffle=True,
         num_workers=4,  # Set num_workers to 0 for compatibility
     )
@@ -113,13 +113,13 @@ def main():
         os.makedirs(output_dir)
 
     # Define early stopping parameters
-    patience = 100  # Number of epochs to wait for improvement
+    patience = 200  # Number of epochs to wait for improvement
     min_delta = 0.0001  # Minimum change to qualify as improvement
 
     # Train and Evaluate the Model with Different Hidden Neurons
     best_accuracy = 0
     best_neurons = 0
-    neuron_options = [15]
+    neuron_options = [5]
 
     for neurons in neuron_options:
         # Start timing for the current model
@@ -130,7 +130,7 @@ def main():
 
         model = MLP(input_size=X_train.shape[1], hidden_size=neurons)
         criterion = nn.BCELoss()  # Binary Cross-Entropy Loss
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer = optim.Adam(model.parameters(), lr=0.1)
 
         # Initialize variables for early stopping
         best_val_loss = np.inf

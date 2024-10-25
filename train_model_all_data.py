@@ -16,9 +16,24 @@ from sklearn.metrics import (
 from tensorflow import squeeze
 import matplotlib.pyplot as plt
 import time
+import os
+from imblearn.under_sampling import RandomUnderSampler
 
 # Start measuring the total runtime
 start_time = time.time()
+
+# Create directories for saving outputs
+os.makedirs("output_results/plots", exist_ok=True)
+os.makedirs("output_results/models", exist_ok=True)
+output_log = "output_results/non_torch_output_log.txt"
+
+
+# Function to write to output log
+def log_message(message):
+    with open(output_log, "a") as f:
+        f.write(message + "\n")
+    print(message)
+
 
 # Load and Preprocess the Data
 file_path = "data/train.csv"  # Update the path if necessary
@@ -45,13 +60,21 @@ for col in non_numeric_cols:
 X = df.drop("loan_status", axis=1)
 y = df["loan_status"]
 
+# Apply RandomUnderSampler to balance the classes in the target variable
+rus = RandomUnderSampler(random_state=42)
+X_resampled, y_resampled = rus.fit_resample(X, y)
+
+# Log the class distribution after undersampling
+log_message("\nClass distribution after undersampling:")
+log_message(str(pd.Series(y_resampled).value_counts()))
+
 # Standardize the Features
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+X_resampled_scaled = scaler.fit_transform(X_resampled)
 
-# Split the Data into Training and Testing Sets
+# Split the Resampled Data into Training and Testing Sets
 X_train, X_test, y_train, y_test = train_test_split(
-    X_scaled, y, test_size=0.2, random_state=42
+    X_resampled_scaled, y_resampled, test_size=0.2, random_state=42
 )
 
 
@@ -74,13 +97,14 @@ def build_model(hidden_neurons):
 # Train and Evaluate the Model with Different Hidden Neurons
 best_accuracy = 0
 best_neurons = 0
-neuron_options = [2, 4, 6, 8, 10, 15, 20]
+neuron_options = [5, 10, 15, 20]
 
 fig, axes = plt.subplots(len(neuron_options), 2, figsize=(14, 4 * len(neuron_options)))
 fig.suptitle("Training Performance for Different Neurons", fontsize=16)
 
 for i, neurons in enumerate(neuron_options):
-    print(f"Training model with {neurons} neurons in the hidden layer...")
+    log_message(f"\nTraining model with {neurons} neurons in the hidden layer...")
+
     # Start timing for the current model
     start_model_time = time.time()
     model = build_model(neurons)
@@ -91,14 +115,19 @@ for i, neurons in enumerate(neuron_options):
         y_train,
         validation_data=(X_test, y_test),
         epochs=1000,
-        batch_size=32,
+        batch_size=128,
         verbose=0,
     )
 
+    # Save the trained model
+    model_file = os.path.join("output_results/models", f"model_{neurons}.h5")
+    model.save(model_file)
+    log_message(f"Model saved to: {model_file}")
+
     # Evaluate the model
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
-    print(f"Accuracy with {neurons} neurons: {accuracy * 100:.2f}%")
-    print(
+    log_message(f"Accuracy with {neurons} neurons: {accuracy * 100:.2f}%")
+    log_message(
         f"Time taken for {neurons} neurons: {time.time() - start_model_time:.2f} seconds"
     )
 
@@ -128,14 +157,12 @@ for i, neurons in enumerate(neuron_options):
     predicted = squeeze(predicted_y)
     predicted = np.array([1 if x >= 0.5 else 0 for x in predicted])
 
-    print(
-        f"\nClassification report for {neurons} neurons:\n",
-        classification_report(y_test, predicted),
-    )
+    classification_rep = classification_report(y_test, predicted)
+    log_message(f"\nClassification report for {neurons} neurons:\n{classification_rep}")
 
     # Display Confusion Matrix
     conf_mat = confusion_matrix(y_test, predicted)
-    print(f"Confusion Matrix for {neurons} neurons:\n", conf_mat)
+    log_message(f"Confusion Matrix for {neurons} neurons:\n{conf_mat}")
 
     # Confusion Matrix Plot
     fig_conf, ax_conf = plt.subplots(1, 2, figsize=(10, 4))
@@ -151,10 +178,22 @@ for i, neurons in enumerate(neuron_options):
     )
     ax_conf[1].set_title("Confusion Matrix (Normalized)")
 
-plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-plt.show()
+    # Save Confusion Matrix Plot
+    conf_matrix_file = os.path.join(
+        "output_results/plots", f"conf_matrix_{neurons}.png"
+    )
+    fig_conf.savefig(conf_matrix_file)
+    plt.close(fig_conf)
+    log_message(f"Confusion Matrix plot saved to: {conf_matrix_file}")
 
-print(
+# Save the loss and accuracy plots
+loss_accuracy_plot_file = "output_results/plots/loss_accuracy_plot.png"
+fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+fig.savefig(loss_accuracy_plot_file)
+plt.close(fig)
+log_message(f"Loss and accuracy plot saved to: {loss_accuracy_plot_file}")
+
+log_message(
     f"\nBest accuracy achieved: {best_accuracy * 100:.2f}% with {best_neurons} neurons."
 )
-print(f"Total script runtime: {time.time() - start_time:.2f} seconds")
+log_message(f"Total script runtime: {time.time() - start_time:.2f} seconds")

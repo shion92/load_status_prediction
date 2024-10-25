@@ -98,9 +98,11 @@ def main():
 
     # Preprocessing and encoding
     df = df[
-        (df["person_age"] <= 100) & (df["person_emp_length"] <= 60) &
-        (df["person_income"] <= 1_000_000) & (df["loan_int_rate"] <= 35) &
-        (df["cb_person_cred_hist_length"] <= 50)
+        (df["person_age"] <= 100)
+        & (df["person_emp_length"] <= 60)
+        & (df["person_income"] <= 1_000_000)
+        & (df["loan_int_rate"] <= 35)
+        & (df["cb_person_cred_hist_length"] <= 50)
     ]
 
     # Encode Categorical Variables
@@ -132,12 +134,9 @@ def main():
         X_resampled_scaled, y_resampled, test_size=0.2, random_state=42
     )
 
-    # Define the hidden neuron options used in training
-    neuron_options = [15]
-
     # Directory where models are saved
     output_dir = "output_results"
-    neuron_options = [15]
+    neuron_options = [5]
 
     # Evaluate each model on the test data and plot losses
     for neurons in neuron_options:
