@@ -4,13 +4,14 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import classification_report
+from imblearn.under_sampling import RandomUnderSampler
 import torch
 import torch.nn as nn
 import os
 import json
 
 
-# Define the MLP model structure to match the saved models
+# Define the MLP model structure
 class MLP(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(MLP, self).__init__()
@@ -25,9 +26,6 @@ class MLP(nn.Module):
 
 
 def plot_loss(train_loss, val_loss, neurons):
-    """
-    Plot training and validation loss for each epoch.
-    """
     plt.figure(figsize=(10, 6))
     plt.plot(train_loss, label="Train Loss")
     plt.plot(val_loss, label="Validation Loss")
@@ -38,7 +36,6 @@ def plot_loss(train_loss, val_loss, neurons):
     plt.grid(True)
     plt.tight_layout()
 
-    # Save the plot
     output_dir = "output_results"
     plot_file = os.path.join(output_dir, f"loss_plot_{neurons}_neurons.png")
     plt.savefig(plot_file)
@@ -47,12 +44,9 @@ def plot_loss(train_loss, val_loss, neurons):
 
 
 def plot_accuracy(train_accuracy, val_accuracy, neurons):
-    """
-    Plot training and validation loss for each epoch.
-    """
     plt.figure(figsize=(10, 6))
-    plt.plot(train_accuracy, label="Train Loss")
-    plt.plot(val_accuracy, label="Validation Loss")
+    plt.plot(train_accuracy, label="Train Accuracy")
+    plt.plot(val_accuracy, label="Validation Accuracy")
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy")
     plt.title(f"Training and Validation Accuracy for {neurons} Neurons")
@@ -60,7 +54,6 @@ def plot_accuracy(train_accuracy, val_accuracy, neurons):
     plt.grid(True)
     plt.tight_layout()
 
-    # Save the plot
     output_dir = "output_results"
     plot_file = os.path.join(output_dir, f"accuracy_plot_{neurons}_neurons.png")
     plt.savefig(plot_file)
@@ -69,31 +62,28 @@ def plot_accuracy(train_accuracy, val_accuracy, neurons):
 
 
 def load_and_evaluate_model(model_file, input_size, hidden_size, X_data, y_data):
-    """
-    Load the model from a .pt file and evaluate it on the provided data.
-    """
-    # Load model structure
     model = MLP(input_size=input_size, hidden_size=hidden_size)
-
-    # Load model weights
     model.load_state_dict(torch.load(model_file))
-    model.eval()  # Set the model to evaluation mode
+    model.eval()
 
     # Convert data to PyTorch tensors
     X_tensor = torch.tensor(X_data, dtype=torch.float32)
     y_tensor = torch.tensor(y_data.values, dtype=torch.float32)
 
-    # Make predictions
     with torch.no_grad():
         y_pred = model(X_tensor)
-        y_pred = (y_pred >= 0.5).float()  # Apply threshold
+        y_pred_labels = (y_pred >= 0.5).float()
+
+    # Convert tensors to numpy arrays for classification report
+    y_true_np = y_tensor.numpy()
+    y_pred_np = y_pred_labels.numpy()
 
     # Calculate accuracy
-    accuracy = (y_pred == y_tensor).float().mean().item()
+    accuracy = (y_pred_labels == y_tensor).float().mean().item()
 
     # Generate classification report
     class_report = classification_report(
-        y_data, y_pred, target_names=["Class 0", "Class 1"]
+        y_true_np, y_pred_np, target_names=["Class 0", "Class 1"]
     )
 
     print(f"Model: {model_file}")
@@ -106,13 +96,11 @@ def main():
     file_path = "data/train.csv"  # Update the path if necessary
     df = pd.read_csv(file_path)
 
-    # Remove Outliers
+    # Preprocessing and encoding
     df = df[
-        (df["person_age"] <= 100)
-        & (df["person_emp_length"] <= 60)
-        & (df["person_income"] <= 1_000_000)
-        & (df["loan_int_rate"] <= 35)
-        & (df["cb_person_cred_hist_length"] <= 50)
+        (df["person_age"] <= 100) & (df["person_emp_length"] <= 60) &
+        (df["person_income"] <= 1_000_000) & (df["loan_int_rate"] <= 35) &
+        (df["cb_person_cred_hist_length"] <= 50)
     ]
 
     # Encode Categorical Variables
@@ -127,13 +115,21 @@ def main():
     X = df.drop(["loan_status", "id"], axis=1)
     y = df["loan_status"]
 
+    # Apply RandomUnderSampler to balance classes
+    rus = RandomUnderSampler(random_state=42)
+    X_resampled, y_resampled = rus.fit_resample(X, y)
+
+    # Check the class distribution after undersampling
+    print("\nClass distribution after undersampling:")
+    print(pd.Series(y_resampled).value_counts())
+
     # Standardize the Features
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    X_resampled_scaled = scaler.fit_transform(X_resampled)
 
     # Split the Data into Training and Testing Sets
     X_train, X_test, y_train, y_test = train_test_split(
-        X_scaled, y, test_size=0.2, random_state=42
+        X_resampled_scaled, y_resampled, test_size=0.2, random_state=42
     )
 
     # Define the hidden neuron options used in training
@@ -141,6 +137,7 @@ def main():
 
     # Directory where models are saved
     output_dir = "output_results"
+    neuron_options = [15]
 
     # Evaluate each model on the test data and plot losses
     for neurons in neuron_options:
@@ -176,8 +173,8 @@ def main():
             model_file,
             input_size=X_train.shape[1],
             hidden_size=neurons,
-            X_data=X_scaled,
-            y_data=y,
+            X_data=X_resampled_scaled,
+            y_data=y_resampled,
         )
 
 

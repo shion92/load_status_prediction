@@ -8,7 +8,7 @@ from sklearn.metrics import (
     confusion_matrix,
     ConfusionMatrixDisplay,
 )
-from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -75,12 +75,12 @@ def main():
     X = df.drop(["loan_status", "id"], axis=1)
     y = df["loan_status"]
 
-    # Apply SMOTE to balance the classes in the target variable
-    smote = SMOTE(random_state=42)
-    X_resampled, y_resampled = smote.fit_resample(X, y)
+    # Apply RandomUnderSampler to balance the classes in the target variable
+    rus = RandomUnderSampler(random_state=42)
+    X_resampled, y_resampled = rus.fit_resample(X, y)
 
-    # Check the class distribution after SMOTE
-    print("\nClass distribution after SMOTE:")
+    # Check the class distribution after undersampling
+    print("\nClass distribution after undersampling:")
     print(pd.Series(y_resampled).value_counts())
 
     # Standardize the Features
@@ -102,7 +102,7 @@ def main():
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=512,
+        batch_size=128,
         shuffle=True,
         num_workers=4,  # Set num_workers to 0 for compatibility
     )
@@ -113,7 +113,7 @@ def main():
         os.makedirs(output_dir)
 
     # Define early stopping parameters
-    patience = 50  # Number of epochs to wait for improvement
+    patience = 100  # Number of epochs to wait for improvement
     min_delta = 0.0001  # Minimum change to qualify as improvement
 
     # Train and Evaluate the Model with Different Hidden Neurons
@@ -130,7 +130,7 @@ def main():
 
         model = MLP(input_size=X_train.shape[1], hidden_size=neurons)
         criterion = nn.BCELoss()  # Binary Cross-Entropy Loss
-        optimizer = optim.Adam(model.parameters(), lr=0.0001)
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
 
         # Initialize variables for early stopping
         best_val_loss = np.inf
@@ -141,7 +141,7 @@ def main():
         val_acc_history = []
 
         # Training loop with early stopping
-        num_epochs = 1000
+        num_epochs = 100
         for epoch in range(num_epochs):
             model.train()
             epoch_train_acc = 0
