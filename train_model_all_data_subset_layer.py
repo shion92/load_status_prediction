@@ -23,9 +23,9 @@ from tensorflow.keras.callbacks import EarlyStopping
 start_time = time.time()
 
 # Create directories for saving outputs
-os.makedirs("output_results/layers/plots", exist_ok=True)
-os.makedirs("output_results/layers/models", exist_ok=True)
-output_log = "output_results/layers/non_torch_output_log.txt"
+os.makedirs("output_results/subset/plots", exist_ok=True)
+os.makedirs("output_results/subset/models", exist_ok=True)
+output_log = "output_results/subset/non_torch_output_log.txt"
 
 
 # Function to write to output log
@@ -37,15 +37,15 @@ def log_message(message):
 
 # Load and Preprocess the Data
 file_path = "data/train.csv"  # Update the path if necessary
-df = pd.read_csv(file_path)
+try:
+    df = pd.read_csv(file_path)
+except FileNotFoundError:
+    log_message(f"File not found: {file_path}")
+    raise
 
-
-# Step 3: Feature Engineering (remains the same as provided)
-# Mapping loan_grade to numerical values
+# Step 3: Feature Engineering (remains the same)
 grade_mapping = {"A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7}
 df["loan_grade_num"] = df["loan_grade"].map(grade_mapping)
-
-# Creating interaction and ratio features
 df["grade_percent_income"] = df["loan_grade_num"] * df["loan_percent_income"]
 df["grade_int_rate"] = df["loan_grade_num"] * df["loan_int_rate"]
 df["percent_income_int_rate"] = df["loan_percent_income"] * df["loan_int_rate"]
@@ -57,34 +57,29 @@ df[["loan_grade_scaled", "loan_percent_income_scaled", "loan_int_rate_scaled"]] 
     scaler.fit_transform(df[["loan_grade_num", "loan_percent_income", "loan_int_rate"]])
 )
 
-# Creating a loan risk score
 df["loan_risk_score"] = (
     df["loan_grade_scaled"]
     + df["loan_percent_income_scaled"]
     + df["loan_int_rate_scaled"]
 )
 
-# Binning age and employment length
+# Encoding, Binning, and Data Cleaning (as before)
 df["emp_length_bin"] = pd.cut(
     df["person_emp_length"],
     bins=[0, 2, 5, 10, 20, 50],
     labels=["<2", "2-5", "5-10", "10-20", ">20"],
 )
 
-# Mapping default on file to numerical values
 cb_person_default_on_file_mapping = {"Y": 1, "N": 2}
 df["cb_person_default_on_file_mapping_num"] = df["cb_person_default_on_file"].map(
     cb_person_default_on_file_mapping
 )
 
-# Log transformation of skewed features
 df["log_person_income"] = np.log1p(df["person_income"])
-
-# Creating additional risk-related features
 df["default_risk_1"] = df["cb_person_default_on_file_mapping_num"] * df["loan_int_rate"]
 df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"]
 
-# Remove Outliers (Ensure columns exist before filtering)
+# Removing Outliers
 df = df[
     (df["person_age"] <= 100)
     & (df["person_emp_length"] <= 60)
@@ -134,7 +129,7 @@ log_message(str(pd.Series(y_resampled).value_counts()))
 scaler = StandardScaler()
 X_resampled_scaled = scaler.fit_transform(X_resampled)
 
-# Split the Resampled Data into Training and Testing Validation Sets
+# Split the Resampled Data into Training and Testing Sets
 X_train_val, X_test, y_train_val, y_test = train_test_split(
     X_resampled_scaled, y_resampled, test_size=0.2, random_state=42
 )
@@ -143,14 +138,12 @@ X_train, X_val, y_train, y_val = train_test_split(
 )
 
 
-# Define the DNN Model with variable number of layers and neurons
+# Define the DNN Model
 def build_dnn_model(input_dim, num_layers, neurons, activation):
     model = Sequential()
     model.add(Dense(neurons, input_dim=input_dim, activation=activation))
-
     for _ in range(num_layers - 1):
         model.add(Dense(neurons, activation=activation))
-
     model.add(Dense(1, activation="sigmoid"))  # Output layer for binary classification
 
     model.compile(
@@ -162,9 +155,9 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
 
 
 # Hyperparameters
-num_layers_options = [1, 2, 3, 4]  # Testing 1 to 4 hidden layers
+num_layers_options = [1, 2, 3]  # Testing 1 to 3 hidden layers
 neurons = 5  # Fixed number of neurons in each layer
-epochs = 2000  # Reduced epochs to prevent overfitting
+epochs = 100  # Reduced epochs for faster training
 batch_size = 128
 activation_options = ["relu", "sigmoid"]  # Activation functions to test
 
@@ -188,7 +181,7 @@ for i, num_layers in enumerate(num_layers_options):
 
         # Early stopping to prevent overfitting
         early_stopping = EarlyStopping(
-            monitor="val_loss", patience=50, restore_best_weights=True
+            monitor="val_loss", patience=20, restore_best_weights=True
         )
 
         # Train the model
@@ -201,6 +194,12 @@ for i, num_layers in enumerate(num_layers_options):
             callbacks=[early_stopping],
             verbose=0,
         )
+
+        # Save the trained model for each configuration
+        model_filename = f"model_{num_layers}layers_{activation}.h5"
+        model_path = os.path.join("output_results/layers/models", model_filename)
+        model.save(model_path)
+        log_message(f"Model saved to: {model_path}")
 
         # Evaluate the model on test data
         loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
@@ -221,17 +220,18 @@ for i, num_layers in enumerate(num_layers_options):
             best_accuracy = accuracy
             best_config = (num_layers, activation)
 
-        # Classification report on test data
+        # Make Predictions and Classification Report on test data
         predicted_y_test = model.predict(X_test)
         predicted_test = (predicted_y_test >= 0.5).astype(int).flatten()
 
         classification_rep_test = classification_report(y_test, predicted_test)
         log_message(f"\nClassification report:\n{classification_rep_test}")
 
-# Save the plot
+# Save the final plot
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-plt.savefig("output_results/layers/plots/dnn_training_performance.png")
-plt.show()
+loss_accuracy_plot_file = "output_results/subset/plots/dnn_training_performance.png"
+plt.savefig(loss_accuracy_plot_file)
+log_message(f"Loss and accuracy plot saved to: {loss_accuracy_plot_file}")
 
 # Log the best configuration and accuracy
 log_message(
