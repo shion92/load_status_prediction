@@ -66,9 +66,9 @@ X = df.drop("loan_status", axis=1)
 y = df["loan_status"]
 
 # Apply RandomUnderSampler to balance the classes in the target variable
-# rus = RandomUnderSampler(random_state=42)
-# X_resampled, y_resampled = rus.fit_resample(X, y)
-X_resampled, y_resampled = X, y
+rus = RandomUnderSampler(random_state=42)
+X_resampled, y_resampled = rus.fit_resample(X, y)
+# X_resampled, y_resampled = X, y
 
 
 # Log the class distribution after undersampling
@@ -122,6 +122,7 @@ neuron_options = [5, 10, 15, 20]
 epochs = 5000  # Reduced epochs to prevent overfitting
 learning_rate = 0.0001
 batch_size = 128
+patience = 100
 
 fig, axes = plt.subplots(len(neuron_options), 2, figsize=(14, 4 * len(neuron_options)))
 fig.suptitle("Training Performance for Different Neurons", fontsize=16)
@@ -137,7 +138,7 @@ for i, neurons in enumerate(neuron_options):
 
     # Early stopping to prevent overfitting
     early_stopping = EarlyStopping(
-        monitor="val_loss", patience=100, restore_best_weights=True
+        monitor="val_loss", patience=patience, restore_best_weights=True
     )
 
     # Train the model
@@ -226,22 +227,22 @@ for i, neurons in enumerate(neuron_options):
     )
 
     # Make Predictions and Classification Report on ALL data
-    predicted_y_all = model.predict(X_resampled)
+    predicted_y_all = model.predict(X_resampled_scaled)
     predicted_all = (predicted_y_all >= 0.5).astype(int).flatten()
 
     classification_rep_all = classification_report(y_resampled, predicted_all)
     log_message(
-        f"\nClassification report for {neurons} neurons on test data:\n{classification_rep_all}"
+        f"\nClassification report for {neurons} neurons on all data:\n{classification_rep_all}"
     )
 
     # Display Confusion Matrix for ALL data
     conf_mat_all = confusion_matrix(y_resampled, predicted_all)
-    log_message(f"Confusion Matrix for {neurons} neurons on test data:\n{conf_mat_all}")
+    log_message(f"Confusion Matrix for {neurons} neurons on all data:\n{conf_mat_all}")
 
     # Confusion Matrix Plot for test data
     fig_conf_all, ax_conf_all = plt.subplots(1, 2, figsize=(10, 4))
     fig_conf_all.suptitle(
-        f"Confusion Matrix for {neurons} Neurons on Test Data", fontsize=14
+        f"Confusion Matrix for {neurons} Neurons on all Data", fontsize=14
     )
 
     ConfusionMatrixDisplay.from_predictions(
@@ -260,7 +261,7 @@ for i, neurons in enumerate(neuron_options):
     )
     fig_conf_all.savefig(conf_matrix_file_all)
     plt.close(fig_conf_all)
-    log_message(f"Confusion Matrix plot for test data saved to: {conf_matrix_file_all}")
+    log_message(f"Confusion Matrix plot for all data saved to: {conf_matrix_file_all}")
 
 # Save the loss and accuracy plots
 loss_accuracy_plot_file = "output_results/plots/loss_accuracy_plot.png"

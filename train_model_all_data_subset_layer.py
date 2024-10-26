@@ -75,7 +75,7 @@ df["cb_person_default_on_file_num"] = df["cb_person_default_on_file"].map(
 )
 
 df["log_person_income"] = np.log1p(df["person_income"])
-df["default_risk_1"] = df["cb_person_default_on_file_num"] * df["loan_int_rate"]
+df["default_risk"] = df["cb_person_default_on_file_num"] * df["loan_int_rate"]
 df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"]
 
 # Removing Outliers
@@ -104,9 +104,9 @@ X = df[
         "grade_int_rate",
         "loan_amnt_income_ratio",
         "log_person_income",
-        "default_risk_1",
-        "loan_amnt",
         "person_home_ownership",
+        "default_risk",
+        "loan_amnt",
     ]
 ]
 # "loan_grade", "loan_percent_income",  "loan_int_rate",  , "cb_person_default_on_file",
@@ -151,11 +151,11 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
 # Hyperparameters
 num_layers_options = [2, 3, 5, 7, 9]
 neurons = 5
-epochs = 1000
+epochs = 5000
 batch_size = 128
 activation_options = ["relu", "sigmoid"]
-learning_rate = 0.01
-patience = 50
+learning_rate = 0.0001
+patience = 100
 
 # Plotting Setup
 fig, axes = plt.subplots(

@@ -85,7 +85,7 @@ df["cb_person_default_on_file_mapping_num"] = df["cb_person_default_on_file"].ma
 df["log_person_income"] = np.log1p(df["person_income"])
 
 # Creating additional risk-related features
-df["default_risk_1"] = df["cb_person_default_on_file_mapping_num"] * df["loan_int_rate"]
+df["default_risk"] = df["cb_person_default_on_file_mapping_num"] * df["loan_int_rate"]
 
 df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"]
 
@@ -139,9 +139,8 @@ X = df[
         "loan_int_rate",
         "log_person_income",
         "person_home_ownership",
-        "cred_length_grade",
         "cb_person_default_on_file",
-        "default_risk_1",
+        "default_risk",
         "loan_amnt",
     ]
 ]
@@ -201,9 +200,10 @@ def build_model(hidden_neurons):
 best_accuracy = 0
 best_neurons = 0
 neuron_options = [5, 10, 15, 20]
-epochs = 2000  # Reduced epochs to prevent overfitting
-learning_rate = 0.001
+epochs = 5000  # Reduced epochs to prevent overfitting
+learning_rate = 0.0001
 batch_size = 128
+patience = 100
 
 fig, axes = plt.subplots(len(neuron_options), 2, figsize=(14, 4 * len(neuron_options)))
 fig.suptitle("Training Performance for Different Neurons", fontsize=16)
@@ -219,7 +219,7 @@ for i, neurons in enumerate(neuron_options):
 
     # Early stopping to prevent overfitting
     early_stopping = EarlyStopping(
-        monitor="val_loss", patience=50, restore_best_weights=True
+        monitor="val_loss", patience=patience, restore_best_weights=True
     )
 
     # Train the model
