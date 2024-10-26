@@ -15,7 +15,7 @@ df = pd.read_csv(file_path)
 df_summary = df.describe()
 print(df_summary)
 
-print(df.dtypes)
+# print(df.dtypes)
 
 grade_mapping = {"A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7}
 df["loan_grade_num"] = df["loan_grade"].map(grade_mapping)
@@ -68,7 +68,7 @@ df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"
 
 # Step 4: Preprocessing - Handling Categorical Variables
 # Identifying non-numeric columns
-non_numeric_cols = df.select_dtypes(include=["object"]).columns
+non_numeric_cols = df.select_dtypes(include=["object", "category"]).columns
 
 # Converting non-numeric columns to numeric using Label Encoding
 label_encoders = {}
@@ -79,8 +79,8 @@ for col in non_numeric_cols:
 
 print(df.head)
 
-# Convert categorical columns to numerical using one-hot encoding
-df = pd.get_dummies(df, columns=["age_bin", "emp_length_bin"], drop_first=True)
+# # Convert categorical columns to numerical using one-hot encoding
+# df = pd.get_dummies(df, columns=["age_bin", "emp_length_bin"], drop_first=True)
 
 # Step 5: Splitting features and target variable
 X = df.drop(
@@ -91,12 +91,14 @@ X = df.drop(
         "person_emp_length",
         "loan_intent",
         "cb_person_cred_hist_length",
+        "loan_grade_scaled",
+        "loan_grade_num",
     ],
     axis=1,
 )
 
-X = df.select_dtypes(include=[np.number])  # Select only numeric columns
-
+X = X.select_dtypes(include=[np.number])  # Select only numeric columns
+X.head(10)
 y = df["loan_status"]  # Setting target variable
 
 
