@@ -58,6 +58,9 @@ df["log_person_income"] = np.log1p(df["person_income"])
 # Creating additional risk-related features
 df["default_risk_1"] = df["cb_person_default_on_file_mapping_num"] * df["loan_int_rate"]
 
+df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"]
+
+
 # Step 4: Remove Outliers
 df = df[
     (df["person_age"] <= 100)  # Remove records with 'person_age' greater than 100
@@ -84,6 +87,8 @@ df = df.drop(
         "loan_grade_scaled",
         "loan_int_rate_scaled",
         "cb_person_default_on_file_mapping_num",
+        "age_bin",
+        "high_int_rate",
     ],
     axis=1,
 )

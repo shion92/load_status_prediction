@@ -13,10 +13,9 @@ from sklearn.metrics import (
     confusion_matrix,
     ConfusionMatrixDisplay,
 )
-from tensorflow import squeeze
 import matplotlib.pyplot as plt
-import time
 import os
+import time
 from imblearn.under_sampling import RandomUnderSampler
 from tensorflow.keras.callbacks import EarlyStopping
 
@@ -24,9 +23,9 @@ from tensorflow.keras.callbacks import EarlyStopping
 start_time = time.time()
 
 # Create directories for saving outputs
-os.makedirs("output_results/subset/plots", exist_ok=True)
-os.makedirs("output_results/subset/models", exist_ok=True)
-output_log = "output_results/subset/non_torch_output_log.txt"
+os.makedirs("output_results/layers/plots", exist_ok=True)
+os.makedirs("output_results/layers/models", exist_ok=True)
+output_log = "output_results/layers/non_torch_output_log.txt"
 
 
 # Function to write to output log
@@ -38,11 +37,52 @@ def log_message(message):
 
 # Load and Preprocess the Data
 file_path = "data/train.csv"  # Update the path if necessary
-try:
-    df = pd.read_csv(file_path)
-except FileNotFoundError:
-    log_message(f"File not found: {file_path}")
-    raise
+df = pd.read_csv(file_path)
+
+
+# Step 3: Feature Engineering (remains the same as provided)
+# Mapping loan_grade to numerical values
+grade_mapping = {"A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7}
+df["loan_grade_num"] = df["loan_grade"].map(grade_mapping)
+
+# Creating interaction and ratio features
+df["grade_percent_income"] = df["loan_grade_num"] * df["loan_percent_income"]
+df["grade_int_rate"] = df["loan_grade_num"] * df["loan_int_rate"]
+df["percent_income_int_rate"] = df["loan_percent_income"] * df["loan_int_rate"]
+df["loan_amnt_income_ratio"] = df["loan_amnt"] / df["person_income"]
+
+# Standardizing specific features
+scaler = StandardScaler()
+df[["loan_grade_scaled", "loan_percent_income_scaled", "loan_int_rate_scaled"]] = (
+    scaler.fit_transform(df[["loan_grade_num", "loan_percent_income", "loan_int_rate"]])
+)
+
+# Creating a loan risk score
+df["loan_risk_score"] = (
+    df["loan_grade_scaled"]
+    + df["loan_percent_income_scaled"]
+    + df["loan_int_rate_scaled"]
+)
+
+# Binning age and employment length
+df["emp_length_bin"] = pd.cut(
+    df["person_emp_length"],
+    bins=[0, 2, 5, 10, 20, 50],
+    labels=["<2", "2-5", "5-10", "10-20", ">20"],
+)
+
+# Mapping default on file to numerical values
+cb_person_default_on_file_mapping = {"Y": 1, "N": 2}
+df["cb_person_default_on_file_mapping_num"] = df["cb_person_default_on_file"].map(
+    cb_person_default_on_file_mapping
+)
+
+# Log transformation of skewed features
+df["log_person_income"] = np.log1p(df["person_income"])
+
+# Creating additional risk-related features
+df["default_risk_1"] = df["cb_person_default_on_file_mapping_num"] * df["loan_int_rate"]
+df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"]
 
 # Remove Outliers (Ensure columns exist before filtering)
 df = df[
@@ -53,9 +93,8 @@ df = df[
     & (df["cb_person_cred_hist_length"] <= 50)
 ]
 
-
 # Encode Categorical Variables
-non_numeric_cols = df.select_dtypes(include=["object"]).columns
+non_numeric_cols = df.select_dtypes(include=["object", "category"]).columns
 label_encoders = {}
 for col in non_numeric_cols:
     le = LabelEncoder()
@@ -63,17 +102,24 @@ for col in non_numeric_cols:
     label_encoders[col] = le
 
 # Split Features and Target
-X = df.drop(
+X = df[
     [
-        "loan_status",
-        "id",
-        "person_age",
-        "person_emp_length",
-        "loan_intent",
-        "cb_person_cred_hist_length",
-    ],
-    axis=1,
-)
+        "grade_percent_income",
+        "loan_risk_score",
+        "percent_income_int_rate",
+        "grade_int_rate",
+        "loan_grade",
+        "loan_percent_income",
+        "loan_amnt_income_ratio",
+        "loan_int_rate",
+        "log_person_income",
+        "person_home_ownership",
+        "cred_length_grade",
+        "cb_person_default_on_file",
+        "default_risk_1",
+        "loan_amnt",
+    ]
+]
 y = df["loan_status"]
 
 # Apply RandomUnderSampler to balance the classes in the target variable
@@ -88,36 +134,27 @@ log_message(str(pd.Series(y_resampled).value_counts()))
 scaler = StandardScaler()
 X_resampled_scaled = scaler.fit_transform(X_resampled)
 
-# Split the Resampled Data into Training and Testing Sets
-# splitting ratio train : test : validation ==> 0.6 : 0.2 : 0.2
+# Split the Resampled Data into Training and Testing Validation Sets
 X_train_val, X_test, y_train_val, y_test = train_test_split(
     X_resampled_scaled, y_resampled, test_size=0.2, random_state=42
 )
-
 X_train, X_val, y_train, y_val = train_test_split(
     X_train_val, y_train_val, test_size=0.2, random_state=42
 )
 
 
-# Define the MLP Model with One Hidden Layer and Dropout
-def build_model(hidden_neurons):
-    model = Sequential(
-        [
-            Dense(
-                hidden_neurons,
-                input_dim=X_train.shape[1],
-                activation="sigmoid",
-            ),
-            # Dropout(0.3),  # Dropout layer to prevent overfitting
-            Dense(
-                1,
-                activation="sigmoid",
-            ),
-        ]
-    )
+# Define the DNN Model with variable number of layers and neurons
+def build_dnn_model(input_dim, num_layers, neurons, activation):
+    model = Sequential()
+    model.add(Dense(neurons, input_dim=input_dim, activation=activation))
+
+    for _ in range(num_layers - 1):
+        model.add(Dense(neurons, activation=activation))
+
+    model.add(Dense(1, activation="sigmoid"))  # Output layer for binary classification
 
     model.compile(
-        optimizer=Adam(learning_rate=learning_rate),
+        optimizer=Adam(learning_rate=0.001),
         loss=BinaryCrossentropy(),
         metrics=[BinaryAccuracy()],
     )
@@ -125,123 +162,79 @@ def build_model(hidden_neurons):
 
 
 # Hyperparameters
-best_accuracy = 0
-best_neurons = 0
-neuron_options = [5, 10, 15, 20]
-epochs = 1000  # Reduced epochs to prevent overfitting
-learning_rate = 0.001
+num_layers_options = [1, 2, 3, 4]  # Testing 1 to 4 hidden layers
+neurons = 5  # Fixed number of neurons in each layer
+epochs = 2000  # Reduced epochs to prevent overfitting
 batch_size = 128
+activation_options = ["relu", "sigmoid"]  # Activation functions to test
 
-fig, axes = plt.subplots(len(neuron_options), 2, figsize=(14, 4 * len(neuron_options)))
-fig.suptitle("Training Performance for Different Neurons", fontsize=16)
+# Plotting Setup
+fig, axes = plt.subplots(
+    len(num_layers_options), len(activation_options), figsize=(12, 8)
+)
+fig.suptitle("Training Performance for Different DNN Configurations", fontsize=16)
 
-for i, neurons in enumerate(neuron_options):
-    log_message(
-        f"\nTraining model with {neurons} neurons in the hidden layer for {epochs} epochs..."
-    )
+best_accuracy = 0
+best_config = None
 
-    # Start timing for the current model
-    start_model_time = time.time()
-    model = build_model(neurons)
+for i, num_layers in enumerate(num_layers_options):
+    for j, activation in enumerate(activation_options):
+        log_message(
+            f"\nTraining model with {num_layers} layers and '{activation}' activation..."
+        )
 
-    # Early stopping to prevent overfitting
-    early_stopping = EarlyStopping(
-        monitor="val_loss", patience=50, restore_best_weights=True
-    )
+        # Build the DNN model
+        model = build_dnn_model(X_train.shape[1], num_layers, neurons, activation)
 
-    # Train the model
-    history = model.fit(
-        X_train,
-        y_train,
-        validation_data=(X_val, y_val),
-        epochs=epochs,
-        batch_size=batch_size,
-        callbacks=[early_stopping],
-        verbose=0,
-    )
+        # Early stopping to prevent overfitting
+        early_stopping = EarlyStopping(
+            monitor="val_loss", patience=50, restore_best_weights=True
+        )
 
-    # Save the trained model
-    model_file = os.path.join("output_results/subset/models", f"model_{neurons}.h5")
-    model.save(model_file)
-    log_message(f"Model saved to: {model_file}")
+        # Train the model
+        history = model.fit(
+            X_train,
+            y_train,
+            validation_data=(X_val, y_val),
+            epochs=epochs,
+            batch_size=batch_size,
+            callbacks=[early_stopping],
+            verbose=0,
+        )
 
-    # Evaluate the model on test data
-    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
-    log_message(f"Accuracy with {neurons} neurons on test data: {accuracy * 100:.2f}%")
-    log_message(
-        f"Time taken for {neurons} neurons: {time.time() - start_model_time:.2f} seconds"
-    )
+        # Evaluate the model on test data
+        loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
+        log_message(
+            f"Accuracy with {num_layers} layers, '{activation}' activation: {accuracy * 100:.2f}%"
+        )
 
-    # Plot Loss
-    axes[i, 0].plot(history.history["loss"], label="Training Loss")
-    axes[i, 0].plot(history.history["val_loss"], label="Validation Loss")
-    axes[i, 0].set_title(f"Loss for {neurons} Neurons")
-    axes[i, 0].set_xlabel("Epochs")
-    axes[i, 0].set_ylabel("Loss")
-    axes[i, 0].legend()
+        # Plot Loss and Accuracy
+        axes[i, j].plot(history.history["loss"], label="Training Loss")
+        axes[i, j].plot(history.history["val_loss"], label="Validation Loss")
+        axes[i, j].set_title(f"{num_layers} Layers, {activation} Activation")
+        axes[i, j].set_xlabel("Epochs")
+        axes[i, j].set_ylabel("Loss")
+        axes[i, j].legend()
 
-    # Plot Accuracy
-    axes[i, 1].plot(history.history["binary_accuracy"], label="Training Accuracy")
-    axes[i, 1].plot(history.history["val_binary_accuracy"], label="Validation Accuracy")
-    axes[i, 1].set_title(f"Accuracy for {neurons} Neurons")
-    axes[i, 1].set_xlabel("Epochs")
-    axes[i, 1].set_ylabel("Accuracy")
-    axes[i, 1].legend()
+        # Update best accuracy and configuration
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            best_config = (num_layers, activation)
 
-    # Update best accuracy and neurons
-    if accuracy > best_accuracy:
-        best_accuracy = accuracy
-        best_neurons = neurons
+        # Classification report on test data
+        predicted_y_test = model.predict(X_test)
+        predicted_test = (predicted_y_test >= 0.5).astype(int).flatten()
 
-    # Make Predictions and Classification Report on test data
-    predicted_y_test = model.predict(X_test)
-    predicted_test = (predicted_y_test >= 0.5).astype(int).flatten()
+        classification_rep_test = classification_report(y_test, predicted_test)
+        log_message(f"\nClassification report:\n{classification_rep_test}")
 
-    classification_rep_test = classification_report(y_test, predicted_test)
-    log_message(
-        f"\nClassification report for {neurons} neurons on test data:\n{classification_rep_test}"
-    )
+# Save the plot
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.savefig("output_results/layers/plots/dnn_training_performance.png")
+plt.show()
 
-    # Display Confusion Matrix for test data
-    conf_mat_test = confusion_matrix(y_test, predicted_test)
-    log_message(
-        f"Confusion Matrix for {neurons} neurons on test data:\n{conf_mat_test}"
-    )
-
-    # Confusion Matrix Plot for test data
-    fig_conf_test, ax_conf_test = plt.subplots(1, 2, figsize=(10, 4))
-    fig_conf_test.suptitle(
-        f"Confusion Matrix for {neurons} Neurons on Test Data", fontsize=14
-    )
-
-    ConfusionMatrixDisplay.from_predictions(
-        y_test, predicted_test, ax=ax_conf_test[0], cmap="Blues"
-    )
-    ax_conf_test[0].set_title("Confusion Matrix (Raw)")
-
-    ConfusionMatrixDisplay.from_predictions(
-        y_test, predicted_test, normalize="true", ax=ax_conf_test[1], cmap="Blues"
-    )
-    ax_conf_test[1].set_title("Confusion Matrix (Normalized)")
-
-    # Save Confusion Matrix Plot for test data
-    conf_matrix_file_test = os.path.join(
-        "output_results/subset/plots", f"conf_matrix_test_{neurons}.png"
-    )
-    fig_conf_test.savefig(conf_matrix_file_test)
-    plt.close(fig_conf_test)
-    log_message(
-        f"Confusion Matrix plot for test data saved to: {conf_matrix_file_test}"
-    )
-
-# Save the loss and accuracy plots
-loss_accuracy_plot_file = "output_results/subset/plots/loss_accuracy_plot.png"
-fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-fig.savefig(loss_accuracy_plot_file)
-plt.close(fig)
-log_message(f"Loss and accuracy plot saved to: {loss_accuracy_plot_file}")
-
+# Log the best configuration and accuracy
 log_message(
-    f"\nBest accuracy achieved: {best_accuracy * 100:.2f}% with {best_neurons} neurons."
+    f"\nBest accuracy achieved: {best_accuracy * 100:.2f}% with configuration: {best_config}"
 )
 log_message(f"Total script runtime: {time.time() - start_time:.2f} seconds")
