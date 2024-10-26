@@ -16,6 +16,7 @@ from sklearn.metrics import (
 import matplotlib.pyplot as plt
 import os
 import time
+import json
 from imblearn.under_sampling import RandomUnderSampler
 from tensorflow.keras.callbacks import EarlyStopping
 
@@ -137,6 +138,15 @@ X_train, X_val, y_train, y_val = train_test_split(
     X_train_val, y_train_val, test_size=0.2, random_state=42
 )
 
+# Hyperparameters
+num_layers_options = [2, 3, 5, 7, 9]  # Testing multiple hidden layers
+neurons = 5  # Fixed number of neurons in each layer
+epochs = 5000  # Adjust epochs for faster training
+batch_size = 128
+activation_options = ["relu", "sigmoid"]  # Activation functions to test
+learning_rate = 0.0001
+patience = 20
+
 
 # Define the DNN Model
 def build_dnn_model(input_dim, num_layers, neurons, activation):
@@ -147,25 +157,18 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
     model.add(Dense(1, activation="sigmoid"))  # Output layer for binary classification
 
     model.compile(
-        optimizer=Adam(learning_rate=0.001),
+        optimizer=Adam(learning_rate=learning_rate),
         loss=BinaryCrossentropy(),
         metrics=[BinaryAccuracy()],
     )
     return model
 
 
-# Hyperparameters
-num_layers_options = [2, 3, 5, 7, 9, 10]  # Testing 1 to 3 hidden layers
-neurons = 5  # Fixed number of neurons in each layer
-epochs = 100  # Reduced epochs for faster training
-batch_size = 128
-activation_options = ["relu", "sigmoid"]  # Activation functions to test
-
 # Plotting Setup
 fig, axes = plt.subplots(
-    len(num_layers_options), len(activation_options), figsize=(12, 8)
+    len(num_layers_options), len(activation_options), figsize=(20, 15)
 )
-fig.suptitle("Training Performance for Different DNN Configurations", fontsize=16)
+fig.suptitle("Training Performance for Different DNN Configurations", fontsize=18)
 
 best_accuracy = 0
 best_config = None
@@ -181,7 +184,7 @@ for i, num_layers in enumerate(num_layers_options):
 
         # Early stopping to prevent overfitting
         early_stopping = EarlyStopping(
-            monitor="val_loss", patience=20, restore_best_weights=True
+            monitor="val_loss", patience=patience, restore_best_weights=True
         )
 
         # Train the model
@@ -224,13 +227,61 @@ for i, num_layers in enumerate(num_layers_options):
         predicted_y_test = model.predict(X_test)
         predicted_test = (predicted_y_test >= 0.5).astype(int).flatten()
 
-        classification_rep_test = classification_report(y_test, predicted_test)
-        log_message(f"\nClassification report:\n{classification_rep_test}")
+        # Save the confusion matrix as plot and data
+        conf_mat = confusion_matrix(y_test, predicted_test)
 
+        # Specify the file path
+        classification_report_file = f"output_results/layers/plots/classification_report_{num_layers}layers_{activation}.json"
+
+        # Save the classification report as a JSON file
+        with open(classification_report_file, "w") as f:
+            json.dump(conf_mat, f, indent=4)
+        print(f"Classification report saved to: {classification_report_file}")
+
+        # Plot the confusion matrix
+        plt.figure(figsize=(8, 6))
+        disp = ConfusionMatrixDisplay(confusion_matrix=conf_mat)
+        disp.plot(cmap="Blues")
+        plt.title(f"Confusion Matrix: {num_layers} Layers, {activation} Activation")
+        conf_matrix_file_png = f"output_results/layers/plots/conf_matrix_{num_layers}layers_{activation}.png"
+        plt.savefig(conf_matrix_file_png)
+        plt.close()
+
+        # Make Predictions and Classification Report on ALL resampled data
+        predicted_y_all = model.predict(X_resampled_scaled)
+        predicted_all = (predicted_y_all >= 0.5).astype(int).flatten()
+
+        # Calculate the confusion matrix on the entire resampled dataset
+        conf_mat_all = confusion_matrix(y_resampled, predicted_all)
+
+        # Generate the classification report for the entire dataset
+        report_all = classification_report(y_resampled, predicted_all, output_dict=True)
+
+        # Specify the file path for the classification report
+        classification_report_file_all = f"output_results/layers/plots/classification_report_{num_layers}layers_{activation}_all.json"
+
+        # Save the classification report as a JSON file
+        with open(classification_report_file_all, "w") as f:
+            json.dump(report_all, f, indent=4)
+        print(f"Classification report saved to: {classification_report_file_all}")
+
+        # Plot the confusion matrix for the entire dataset
+        plt.figure(figsize=(8, 6))
+        disp_all = ConfusionMatrixDisplay(confusion_matrix=conf_mat_all)
+        disp_all.plot(cmap="Blues")
+        plt.title(
+            f"Confusion Matrix: {num_layers} Layers, {activation} Activation (All Data)"
+        )
+        conf_matrix_file_all_png = f"output_results/layers/plots/conf_matrix_{num_layers}layers_{activation}_all.png"
+        plt.savefig(conf_matrix_file_all_png)
+        plt.close()
+
+print(f"Confusion matrix plot saved to: {conf_matrix_file_all_png}")
 # Save the final plot
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 loss_accuracy_plot_file = "output_results/layers/plots/dnn_training_performance.png"
 plt.savefig(loss_accuracy_plot_file)
+plt.close()
 log_message(f"Loss and accuracy plot saved to: {loss_accuracy_plot_file}")
 
 # Log the best configuration and accuracy
