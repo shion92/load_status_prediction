@@ -23,9 +23,9 @@ from tensorflow.keras.callbacks import EarlyStopping
 start_time = time.time()
 
 # Create directories for saving outputs
-os.makedirs("output_results/subset/plots", exist_ok=True)
-os.makedirs("output_results/subset/models", exist_ok=True)
-output_log = "output_results/subset/non_torch_output_log.txt"
+os.makedirs("output_results/layers/plots", exist_ok=True)
+os.makedirs("output_results/layers/models", exist_ok=True)
+output_log = "output_results/layers/non_torch_output_log.txt"
 
 
 # Function to write to output log
@@ -155,7 +155,7 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
 
 
 # Hyperparameters
-num_layers_options = [1, 2, 3]  # Testing 1 to 3 hidden layers
+num_layers_options = [2, 3, 5, 7, 9, 10]  # Testing 1 to 3 hidden layers
 neurons = 5  # Fixed number of neurons in each layer
 epochs = 100  # Reduced epochs for faster training
 batch_size = 128
@@ -229,7 +229,7 @@ for i, num_layers in enumerate(num_layers_options):
 
 # Save the final plot
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-loss_accuracy_plot_file = "output_results/subset/plots/dnn_training_performance.png"
+loss_accuracy_plot_file = "output_results/layers/plots/dnn_training_performance.png"
 plt.savefig(loss_accuracy_plot_file)
 log_message(f"Loss and accuracy plot saved to: {loss_accuracy_plot_file}")
 
