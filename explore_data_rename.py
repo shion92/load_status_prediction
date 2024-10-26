@@ -87,8 +87,7 @@ df = df.drop(
         "loan_grade_scaled",
         "loan_int_rate_scaled",
         "cb_person_default_on_file_mapping_num",
-        "age_bin",
-        "high_int_rate",
+        # "age_bin",
     ],
     axis=1,
 )

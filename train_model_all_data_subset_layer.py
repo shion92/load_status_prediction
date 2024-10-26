@@ -56,7 +56,6 @@ scaled_features = scaler.fit_transform(
 df[["loan_grade_scaled", "loan_percent_income_scaled", "loan_int_rate_scaled"]] = (
     scaled_features
 )
-
 df["loan_risk_score"] = (
     df["loan_grade_scaled"]
     + df["loan_percent_income_scaled"]
@@ -105,7 +104,6 @@ X = df[
         "grade_int_rate",
         "loan_amnt_income_ratio",
         "log_person_income",
-        "cred_length_grade",
         "default_risk_1",
         "loan_amnt",
         "person_home_ownership",
@@ -153,11 +151,11 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
 # Hyperparameters
 num_layers_options = [2, 3, 5, 7, 9]
 neurons = 5
-epochs = 5000
+epochs = 1000
 batch_size = 128
 activation_options = ["relu", "sigmoid"]
-learning_rate = 0.0001
-patience = 20
+learning_rate = 0.01
+patience = 50
 
 # Plotting Setup
 fig, axes = plt.subplots(
@@ -199,11 +197,13 @@ for i, num_layers in enumerate(num_layers_options):
         model.save(model_path)
         log_message(f"Model saved to: {model_path}")
 
+        # Evaluate the model on test data
         loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
         log_message(
             f"Accuracy: {accuracy * 100:.2f}% for {num_layers} layers, '{activation}' activation"
         )
 
+        # Plot Loss and Accuracy
         axes[i, j].plot(history.history["loss"], label="Training Loss")
         axes[i, j].plot(history.history["val_loss"], label="Validation Loss")
         axes[i, j].set_title(f"{num_layers} Layers, {activation} Activation")
@@ -211,6 +211,57 @@ for i, num_layers in enumerate(num_layers_options):
         axes[i, j].set_ylabel("Loss")
         axes[i, j].legend()
 
+        # Classification report and confusion matrix on test data
+        predicted_y_test = model.predict(X_test)
+        predicted_test = (predicted_y_test >= 0.5).astype(int).flatten()
+
+        conf_mat = confusion_matrix(y_test, predicted_test)
+        report = classification_report(y_test, predicted_test, output_dict=True)
+
+        # Save the classification report for test data
+        classification_report_file = f"output_results/layers/plots/classification_report_{num_layers}layers_{activation}.json"
+        with open(classification_report_file, "w") as f:
+            json.dump(report, f, indent=4)
+        log_message(f"Classification report saved to: {classification_report_file}")
+
+        # Plot and save confusion matrix for test data
+        plt.figure(figsize=(8, 6))
+        disp = ConfusionMatrixDisplay(confusion_matrix=conf_mat)
+        disp.plot(cmap="Blues")
+        plt.title(f"Confusion Matrix: {num_layers} Layers, {activation} Activation")
+        conf_matrix_file = f"output_results/layers/plots/conf_matrix_{num_layers}layers_{activation}.png"
+        plt.savefig(conf_matrix_file)
+        plt.close()
+        log_message(f"Confusion matrix saved to: {conf_matrix_file}")
+
+        # Classification report and confusion matrix on ALL resampled data
+        predicted_y_all = model.predict(X_resampled_scaled)
+        predicted_all = (predicted_y_all >= 0.5).astype(int).flatten()
+
+        conf_mat_all = confusion_matrix(y_resampled, predicted_all)
+        report_all = classification_report(y_resampled, predicted_all, output_dict=True)
+
+        # Save the classification report for all resampled data
+        classification_report_file_all = f"output_results/layers/plots/classification_report_{num_layers}layers_{activation}_all.json"
+        with open(classification_report_file_all, "w") as f:
+            json.dump(report_all, f, indent=4)
+        log_message(
+            f"Classification report for all data saved to: {classification_report_file_all}"
+        )
+
+        # Plot and save confusion matrix for all resampled data
+        plt.figure(figsize=(8, 6))
+        disp_all = ConfusionMatrixDisplay(confusion_matrix=conf_mat_all)
+        disp_all.plot(cmap="Blues")
+        plt.title(
+            f"Confusion Matrix: {num_layers} Layers, {activation} Activation (All Data)"
+        )
+        conf_matrix_file_all = f"output_results/layers/plots/conf_matrix_{num_layers}layers_{activation}_all.png"
+        plt.savefig(conf_matrix_file_all)
+        plt.close()
+        log_message(f"Confusion matrix for all data saved to: {conf_matrix_file_all}")
+
+        # Update best accuracy and configuration
         if accuracy > best_accuracy:
             best_accuracy = accuracy
             best_config = (num_layers, activation)
