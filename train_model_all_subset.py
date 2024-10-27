@@ -26,7 +26,7 @@ start_time = time.time()
 # Create directories for saving outputs
 os.makedirs("output_results/subset/plots", exist_ok=True)
 os.makedirs("output_results/subset/models", exist_ok=True)
-output_log = "output_results/subset/non_torch_output_log.txt"
+output_log = "output_results/subset/output_log.txt"
 
 
 # Function to write to output log
@@ -99,49 +99,36 @@ df = df[
     & (df["cb_person_cred_hist_length"] <= 50)
 ]
 
+# Converting categorical bins to one-hot encoding
+df = pd.get_dummies(df, columns=["person_home_ownership"])
+print(df.head)
 
 # Encode Categorical Variables
-non_numeric_cols = df.select_dtypes(include=["object", "category"]).columns
+non_numeric_cols = df.select_dtypes(include=["object", "category", "bool"]).columns
 label_encoders = {}
 for col in non_numeric_cols:
     le = LabelEncoder()
     df[col] = le.fit_transform(df[col])
     label_encoders[col] = le
 
-# Split Features and Target
-# X = df.drop(
-#     [
-#         "loan_status",
-#         "id",
-#         "person_age",
-#         "person_emp_length",
-#         "loan_intent",
-#         "cb_person_cred_hist_length",
-#         "person_income",
-#         "loan_grade_scaled",
-#         "loan_grade_num",
-#         "loan_grade_scaled",
-#         "loan_int_rate_scaled",
-#         "cb_person_default_on_file_mapping_num",
-#     ],
-#     axis=1,
-# )
+print(df.columns)
 
 X = df[
     [
         "grade_percent_income",
         "loan_risk_score",
-        "percent_income_int_rate",
-        "grade_int_rate",
+        # "percent_income_int_rate",
+        # "grade_int_rate",
         "loan_grade",
         "loan_percent_income",
         "loan_amnt_income_ratio",
         "loan_int_rate",
         "log_person_income",
-        "person_home_ownership",
-        "cb_person_default_on_file",
-        "default_risk",
-        "loan_amnt",
+        "person_home_ownership_RENT",
+        "person_home_ownership_MORTGAGE",
+        # "cb_person_default_on_file",
+        # "default_risk",
+        # "loan_amnt",
     ]
 ]
 print(len(X.columns))
@@ -200,7 +187,7 @@ def build_model(hidden_neurons):
 best_accuracy = 0
 best_neurons = 0
 neuron_options = [5, 10, 15, 20]
-epochs = 5000  # Reduced epochs to prevent overfitting
+epochs = 5000
 learning_rate = 0.0001
 batch_size = 128
 patience = 100
@@ -292,11 +279,6 @@ for i, neurons in enumerate(neuron_options):
     )
     ax_conf_test[0].set_title("Confusion Matrix (Raw)")
 
-    ConfusionMatrixDisplay.from_predictions(
-        y_test, predicted_test, normalize="true", ax=ax_conf_test[1], cmap="Blues"
-    )
-    ax_conf_test[1].set_title("Confusion Matrix (Normalized)")
-
     # Save Confusion Matrix Plot for test data
     conf_matrix_file_test = os.path.join(
         "output_results/subset/plots", f"conf_matrix_test_{neurons}.png"
@@ -306,6 +288,43 @@ for i, neurons in enumerate(neuron_options):
     log_message(
         f"Confusion Matrix plot for test data saved to: {conf_matrix_file_test}"
     )
+
+    # Make Predictions and Classification Report on ALL data
+    predicted_y_all = model.predict(X_resampled_scaled)
+    predicted_all = (predicted_y_all >= 0.5).astype(int).flatten()
+
+    classification_rep_all = classification_report(y_resampled, predicted_all)
+    log_message(
+        f"\nClassification report for {neurons} neurons on all data:\n{classification_rep_all}"
+    )
+
+    # Display Confusion Matrix for ALL data
+    conf_mat_all = confusion_matrix(y_resampled, predicted_all)
+    log_message(f"Confusion Matrix for {neurons} neurons on all data:\n{conf_mat_all}")
+
+    # Confusion Matrix Plot for test data
+    fig_conf_all, ax_conf_all = plt.subplots(1, 2, figsize=(10, 4))
+    fig_conf_all.suptitle(
+        f"Confusion Matrix for {neurons} Neurons on all Data", fontsize=14
+    )
+
+    ConfusionMatrixDisplay.from_predictions(
+        y_resampled, predicted_all, ax=ax_conf_all[0], cmap="Blues"
+    )
+    ax_conf_all[0].set_title("Confusion Matrix (Raw)")
+
+    ConfusionMatrixDisplay.from_predictions(
+        y_resampled, predicted_all, normalize="true", ax=ax_conf_all[1], cmap="Blues"
+    )
+    ax_conf_all[1].set_title("Confusion Matrix (Normalized)")
+
+    # Save Confusion Matrix Plot for test data
+    conf_matrix_file_all = os.path.join(
+        "output_results/subset/plots", f"conf_matrix_all_{neurons}.png"
+    )
+    fig_conf_all.savefig(conf_matrix_file_all)
+    plt.close(fig_conf_all)
+    log_message(f"Confusion Matrix plot for all data saved to: {conf_matrix_file_all}")
 
 # Save the loss and accuracy plots
 loss_accuracy_plot_file = "output_results/subset/plots/loss_accuracy_plot.png"

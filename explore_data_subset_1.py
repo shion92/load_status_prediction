@@ -92,21 +92,19 @@ df = df.drop(
     axis=1,
 )
 
+
+# Converting categorical bins to one-hot encoding
+df = pd.get_dummies(df, columns=["person_home_ownership"])
 print(df.dtypes)
 
-# Step 5: Handling Categorical Variables
-non_numeric_cols = df.select_dtypes(include=["object", "category"]).columns
-print(non_numeric_cols)
-
-# Label Encoding non-numeric columns
+# Encode Categorical Variables
+non_numeric_cols = df.select_dtypes(include=["object", "category", "bool"]).columns
 label_encoders = {}
 for col in non_numeric_cols:
     le = LabelEncoder()
     df[col] = le.fit_transform(df[col])
     label_encoders[col] = le
 
-# # Converting categorical bins to one-hot encoding
-# df = pd.get_dummies(df, columns=["age_bin", "emp_length_bin"], drop_first=True)
 
 # Step 6: Selecting Numerical Features
 numerical_cols = df.select_dtypes(include=["int64", "float64"]).columns

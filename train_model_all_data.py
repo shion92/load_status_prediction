@@ -24,9 +24,9 @@ from tensorflow.keras.callbacks import EarlyStopping
 start_time = time.time()
 
 # Create directories for saving outputs
-os.makedirs("output_results/plots", exist_ok=True)
-os.makedirs("output_results/models", exist_ok=True)
-output_log = "output_results/non_torch_output_log.txt"
+os.makedirs("output_results/full/plots", exist_ok=True)
+os.makedirs("output_results/full/models", exist_ok=True)
+output_log = "output_results/full/output_log_full.txt"
 
 
 # Function to write to output log
@@ -62,7 +62,7 @@ for col in non_numeric_cols:
     label_encoders[col] = le
 
 # Split Features and Target
-X = df.drop("loan_status", axis=1)
+X = df.drop(["loan_status", "id"], axis=1)
 y = df["loan_status"]
 
 # Apply RandomUnderSampler to balance the classes in the target variable
@@ -118,7 +118,10 @@ def build_model(hidden_neurons):
 # Hyperparameters
 best_accuracy = 0
 best_neurons = 0
-neuron_options = [5, 10, 15, 20]
+neuron_options = [
+    # 5, 10, 15,
+    20
+]
 epochs = 5000  # Reduced epochs to prevent overfitting
 learning_rate = 0.0001
 batch_size = 128
@@ -153,7 +156,7 @@ for i, neurons in enumerate(neuron_options):
     )
 
     # Save the trained model
-    model_file = os.path.join("output_results/models", f"model_{neurons}.h5")
+    model_file = os.path.join("output_results/full/models", f"model_{neurons}.h5")
     model.save(model_file)
     log_message(f"Model saved to: {model_file}")
 
@@ -218,7 +221,7 @@ for i, neurons in enumerate(neuron_options):
 
     # Save Confusion Matrix Plot for test data
     conf_matrix_file_test = os.path.join(
-        "output_results/plots", f"conf_matrix_test_{neurons}.png"
+        "output_results/full/plots", f"conf_matrix_test_{neurons}.png"
     )
     fig_conf_test.savefig(conf_matrix_file_test)
     plt.close(fig_conf_test)
@@ -257,14 +260,14 @@ for i, neurons in enumerate(neuron_options):
 
     # Save Confusion Matrix Plot for test data
     conf_matrix_file_all = os.path.join(
-        "output_results/plots", f"conf_matrix_all_{neurons}.png"
+        "output_results/full/plots", f"conf_matrix_all_{neurons}.png"
     )
     fig_conf_all.savefig(conf_matrix_file_all)
     plt.close(fig_conf_all)
     log_message(f"Confusion Matrix plot for all data saved to: {conf_matrix_file_all}")
 
 # Save the loss and accuracy plots
-loss_accuracy_plot_file = "output_results/plots/loss_accuracy_plot.png"
+loss_accuracy_plot_file = "output_results/full/plots/loss_accuracy_plot.png"
 fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 fig.savefig(loss_accuracy_plot_file)
 plt.close(fig)

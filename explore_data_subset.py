@@ -21,8 +21,8 @@ grade_mapping = {"A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7}
 df["loan_grade_num"] = df["loan_grade"].map(grade_mapping)
 
 df["grade_percent_income"] = df["loan_grade_num"] * df["loan_percent_income"]
-df["grade_int_rate"] = df["loan_grade_num"] * df["loan_int_rate"]
-df["percent_income_int_rate"] = df["loan_percent_income"] * df["loan_int_rate"]
+# df["grade_int_rate"] = df["loan_grade_num"] * df["loan_int_rate"]
+# df["percent_income_int_rate"] = df["loan_percent_income"] * df["loan_int_rate"]
 df["loan_amnt_income_ratio"] = df["loan_amnt"] / df["person_income"]
 
 
@@ -47,9 +47,9 @@ df["emp_length_bin"] = pd.cut(
     labels=["<2", "2-5", "5-10", "10-20", ">20"],
 )
 
-df["high_int_rate"] = (df["loan_int_rate"] > 0.15).astype(
-    int
-)  # Assuming 15% as the threshold
+# df["high_int_rate"] = (df["loan_int_rate"] > 0.15).astype(
+#     int
+# )  # Assuming 15% as the threshold
 
 cb_person_default_on_file_mapping = {"Y": 1, "N": 2}
 df["cb_person_default_on_file_mapping_num"] = df["cb_person_default_on_file"].map(
@@ -60,10 +60,10 @@ df["cb_person_default_on_file_mapping_num"] = df["cb_person_default_on_file"].ma
 df["log_loan_amnt"] = np.log1p(df["loan_amnt"])
 df["log_person_income"] = np.log1p(df["person_income"])
 
-df["default_risk_1"] = df["cb_person_default_on_file_mapping_num"] * df["loan_int_rate"]
-# df["default_risk_2"] = df["person_age"] / df["person_emp_length"] * df["log_loan_amnt"]
+# df["default_risk_1"] = df["cb_person_default_on_file_mapping_num"] * df["loan_int_rate"]
+# # df["default_risk_2"] = df["person_age"] / df["person_emp_length"] * df["log_loan_amnt"]
 
-df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"]
+# df["cred_length_grade"] = df["cb_person_cred_hist_length"] * df["loan_grade_num"]
 
 
 # Step 4: Preprocessing - Handling Categorical Variables
@@ -80,7 +80,16 @@ for col in non_numeric_cols:
 print(df.head)
 
 # # Convert categorical columns to numerical using one-hot encoding
-# df = pd.get_dummies(df, columns=["age_bin", "emp_length_bin"], drop_first=True)
+df = pd.get_dummies(df, columns=["person_home_ownership"])
+
+# Encode Categorical Variables
+non_numeric_cols = df.select_dtypes(include=["object", "category", "bool"]).columns
+label_encoders = {}
+for col in non_numeric_cols:
+    le = LabelEncoder()
+    df[col] = le.fit_transform(df[col])
+    label_encoders[col] = le
+
 
 # Step 5: Splitting features and target variable
 X = df.drop(
@@ -98,7 +107,8 @@ X = df.drop(
         "loan_int_rate_scaled",
         "cb_person_default_on_file_mapping_num",
         "age_bin",
-        "high_int_rate",
+        "loan_percent_income_scaled",
+        # "high_int_rate",
     ],
     axis=1,
 )
@@ -128,6 +138,24 @@ if y is not None:  # Proceed only if the target variable is available
     # Displaying the feature scores
     print("Feature Scores from SelectKBest (using f_classif):")
     print(feature_scores)
+
+    # Displaying the feature scores
+    print("Feature Scores from SelectKBest (using f_classif):")
+    print(feature_scores)
+
+    # Create a bar chart for visualizing the F-values
+    plt.figure(figsize=(12, 8))
+    sns.barplot(
+        data=feature_scores,
+        x="Score",
+        y="Feature",
+        color="tomato",
+    )
+    plt.title("F-value of Features using SelectKBest (f_classif)", fontsize=16)
+    plt.xlabel("F-value", fontsize=14)
+    plt.ylabel("Features", fontsize=14)
+    plt.tight_layout()
+    plt.show()
 else:
     print(
         "The target variable 'loan_status' is not found in the dataset. Please check the column names."

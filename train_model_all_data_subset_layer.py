@@ -87,8 +87,12 @@ df = df[
     & (df["cb_person_cred_hist_length"] <= 50)
 ]
 
+# Converting categorical bins to one-hot encoding
+df = pd.get_dummies(df, columns=["person_home_ownership"])
+print(df.head)
+
 # Encode Categorical Variables
-non_numeric_cols = df.select_dtypes(include=["object", "category"]).columns
+non_numeric_cols = df.select_dtypes(include=["object", "category", "bool"]).columns
 label_encoders = {}
 for col in non_numeric_cols:
     le = LabelEncoder()
@@ -100,13 +104,18 @@ X = df[
     [
         "grade_percent_income",
         "loan_risk_score",
-        "percent_income_int_rate",
-        "grade_int_rate",
+        # "percent_income_int_rate",
+        # "grade_int_rate",
+        "loan_grade",
+        "loan_percent_income",
         "loan_amnt_income_ratio",
+        "loan_int_rate",
         "log_person_income",
-        "person_home_ownership",
-        "default_risk",
-        "loan_amnt",
+        "person_home_ownership_RENT",
+        "person_home_ownership_MORTGAGE",
+        # "cb_person_default_on_file",
+        # "default_risk",
+        # "loan_amnt",
     ]
 ]
 # "loan_grade", "loan_percent_income",  "loan_int_rate",  , "cb_person_default_on_file",
@@ -149,8 +158,8 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
 
 
 # Hyperparameters
-num_layers_options = [2, 3, 5, 7, 9]
-neurons = 5
+num_layers_options = [2, 3, 5]
+neurons = 15
 epochs = 5000
 batch_size = 128
 activation_options = ["relu", "sigmoid"]
