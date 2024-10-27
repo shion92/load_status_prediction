@@ -160,16 +160,14 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
 # Hyperparameters
 num_layers_options = [2, 3, 5]
 neurons = 15
-epochs = 5000
+epochs = 500
 batch_size = 128
 activation_options = ["relu", "sigmoid"]
 learning_rate = 0.0001
 patience = 100
 
 # Plotting Setup
-fig, axes = plt.subplots(
-    len(num_layers_options), len(activation_options), figsize=(20, 15)
-)
+fig, axes = plt.subplots(len(num_layers_options), 2, figsize=(20, 15))
 fig.suptitle("Training Performance for Different DNN Configurations", fontsize=18)
 
 best_accuracy = 0
@@ -181,6 +179,8 @@ for i, num_layers in enumerate(num_layers_options):
         log_message(
             f"\nTraining model with {num_layers} layers and '{activation}' activation (epochs = {epochs})..."
         )
+        # Start timing for the current model
+        start_model_time = time.time()
 
         # Build the DNN model
         model = build_dnn_model(X_train.shape[1], num_layers, neurons, activation)
@@ -211,64 +211,81 @@ for i, num_layers in enumerate(num_layers_options):
         log_message(
             f"Accuracy: {accuracy * 100:.2f}% for {num_layers} layers, '{activation}' activation"
         )
+        log_message(
+            f"Time taken for {neurons} neurons: {time.time() - start_model_time:.2f} seconds"
+        )
 
-        # Plot Loss and Accuracy
-        axes[i, j].plot(history.history["loss"], label="Training Loss")
-        axes[i, j].plot(history.history["val_loss"], label="Validation Loss")
-        axes[i, j].set_title(f"{num_layers} Layers, {activation} Activation")
-        axes[i, j].set_xlabel("Epochs")
-        axes[i, j].set_ylabel("Loss")
-        axes[i, j].legend()
+        # Plot Loss
+        axes[i, 0].plot(history.history["loss"], label="Training Loss")
+        axes[i, 0].plot(history.history["val_loss"], label="Validation Loss")
+        axes[i, 0].set_title(f"Loss for {num_layers} Layers, {activation} Activation")
+        axes[i, 0].set_xlabel("Epochs")
+        axes[i, 0].set_ylabel("Loss")
+        axes[i, 0].legend()
+
+        # Plot Accuracy
+        axes[i, 1].plot(history.history["binary_accuracy"], label="Training Accuracy")
+        axes[i, 1].plot(
+            history.history["val_binary_accuracy"], label="Validation Accuracy"
+        )
+        axes[i, 1].set_title(
+            f"Accuracy for {num_layers} Layers, {activation} Activation"
+        )
+        axes[i, 1].set_xlabel("Epochs")
+        axes[i, 1].set_ylabel("Accuracy")
+        axes[i, 1].legend()
 
         # Classification report and confusion matrix on test data
         predicted_y_test = model.predict(X_test)
         predicted_test = (predicted_y_test >= 0.5).astype(int).flatten()
 
-        conf_mat = confusion_matrix(y_test, predicted_test)
-        report = classification_report(y_test, predicted_test, output_dict=True)
+        classification_rep_test = classification_report(y_test, predicted_test)
+        log_message(
+            f"\nClassification report for {num_layers} Layers, {activation} Activation on test data:\n{classification_rep_test}"
+        )
 
-        # Save the classification report for test data
-        classification_report_file = f"output_results/layers/plots/classification_report_{num_layers}layers_{activation}.json"
-        with open(classification_report_file, "w") as f:
-            json.dump(report, f, indent=4)
-        log_message(f"Classification report saved to: {classification_report_file}")
-
+        conf_mat_test = confusion_matrix(y_test, predicted_test)
+        log_message(
+            f"Confusion Matrix for {num_layers} Layers, {activation} Activation on test data:\n{conf_mat_test}"
+        )
         # Plot and save confusion matrix for test data
-        plt.figure(figsize=(8, 6))
-        disp = ConfusionMatrixDisplay(confusion_matrix=conf_mat)
-        disp.plot(cmap="Blues")
-        plt.title(f"Confusion Matrix: {num_layers} Layers, {activation} Activation")
-        conf_matrix_file = f"output_results/layers/plots/conf_matrix_{num_layers}layers_{activation}.png"
-        plt.savefig(conf_matrix_file)
-        plt.close()
-        log_message(f"Confusion matrix saved to: {conf_matrix_file}")
+        fig_conf, ax_conf = plt.subplots(1, 2, figsize=(10, 4))
+        fig_conf.suptitle(
+            f"Confusion Matrix for {num_layers} Layers, {activation} Activation on Test and ALL Data",
+            fontsize=14,
+        )
+
+        ConfusionMatrixDisplay.from_predictions(
+            y_test, predicted_test, ax=ax_conf[0], cmap="Blues"
+        )
+
+        ax_conf[0].set_title("Test data")
 
         # Classification report and confusion matrix on ALL resampled data
         predicted_y_all = model.predict(X_resampled_scaled)
         predicted_all = (predicted_y_all >= 0.5).astype(int).flatten()
 
-        conf_mat_all = confusion_matrix(y_resampled, predicted_all)
-        report_all = classification_report(y_resampled, predicted_all, output_dict=True)
-
-        # Save the classification report for all resampled data
-        classification_report_file_all = f"output_results/layers/plots/classification_report_{num_layers}layers_{activation}_all.json"
-        with open(classification_report_file_all, "w") as f:
-            json.dump(report_all, f, indent=4)
+        classification_rep_all = classification_report(
+            y_resampled, predicted_all, output_dict=True
+        )
         log_message(
-            f"Classification report for all data saved to: {classification_report_file_all}"
+            f"\nClassification report for {num_layers} Layers, {activation} Activation on all data:\n{classification_rep_all}"
+        )
+        # Save the classification report for all resampled data
+        conf_mat_all = confusion_matrix(y_resampled, predicted_all)
+        log_message(
+            f"Classification report for {num_layers} Layers, {activation} Activation all data saved to: {conf_mat_all}"
         )
 
         # Plot and save confusion matrix for all resampled data
-        plt.figure(figsize=(8, 6))
-        disp_all = ConfusionMatrixDisplay(confusion_matrix=conf_mat_all)
-        disp_all.plot(cmap="Blues")
-        plt.title(
-            f"Confusion Matrix: {num_layers} Layers, {activation} Activation (All Data)"
+        ConfusionMatrixDisplay.from_predictions(
+            y_resampled, predicted_all, ax=ax_conf[1], cmap="Blues"
         )
-        conf_matrix_file_all = f"output_results/layers/plots/conf_matrix_{num_layers}layers_{activation}_all.png"
-        plt.savefig(conf_matrix_file_all)
+        ax_conf[1].set_title("ALL data")
+        conf_matrix_file = f"output_results/layers/plots/conf_matrix_{num_layers}layers_{activation}_all.png"
+        plt.savefig(conf_matrix_file)
         plt.close()
-        log_message(f"Confusion matrix for all data saved to: {conf_matrix_file_all}")
+        log_message(f"Confusion matrix for all data saved to: {conf_matrix_file}")
 
         # Update best accuracy and configuration
         if accuracy > best_accuracy:

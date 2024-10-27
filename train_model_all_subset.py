@@ -187,7 +187,7 @@ def build_model(hidden_neurons):
 best_accuracy = 0
 best_neurons = 0
 neuron_options = [5, 10, 15, 20]
-epochs = 5000
+epochs = 2000
 learning_rate = 0.0001
 batch_size = 128
 patience = 100
@@ -269,25 +269,15 @@ for i, neurons in enumerate(neuron_options):
     )
 
     # Confusion Matrix Plot for test data
-    fig_conf_test, ax_conf_test = plt.subplots(1, 2, figsize=(10, 4))
-    fig_conf_test.suptitle(
-        f"Confusion Matrix for {neurons} Neurons on Test Data", fontsize=14
+    fig_conf, ax_conf = plt.subplots(1, 2, figsize=(10, 4))
+    fig_conf.suptitle(
+        f"Confusion Matrix for {neurons} Neurons on Test and ALL Data", fontsize=14
     )
 
     ConfusionMatrixDisplay.from_predictions(
-        y_test, predicted_test, ax=ax_conf_test[0], cmap="Blues"
+        y_test, predicted_test, ax=ax_conf[0], cmap="Blues"
     )
-    ax_conf_test[0].set_title("Confusion Matrix (Raw)")
-
-    # Save Confusion Matrix Plot for test data
-    conf_matrix_file_test = os.path.join(
-        "output_results/subset/plots", f"conf_matrix_test_{neurons}.png"
-    )
-    fig_conf_test.savefig(conf_matrix_file_test)
-    plt.close(fig_conf_test)
-    log_message(
-        f"Confusion Matrix plot for test data saved to: {conf_matrix_file_test}"
-    )
+    ax_conf[0].set_title("Confusion Matrix")
 
     # Make Predictions and Classification Report on ALL data
     predicted_y_all = model.predict(X_resampled_scaled)
@@ -302,29 +292,19 @@ for i, neurons in enumerate(neuron_options):
     conf_mat_all = confusion_matrix(y_resampled, predicted_all)
     log_message(f"Confusion Matrix for {neurons} neurons on all data:\n{conf_mat_all}")
 
-    # Confusion Matrix Plot for test data
-    fig_conf_all, ax_conf_all = plt.subplots(1, 2, figsize=(10, 4))
-    fig_conf_all.suptitle(
-        f"Confusion Matrix for {neurons} Neurons on all Data", fontsize=14
-    )
-
+    # Confusion Matrix Plot for ALL data
     ConfusionMatrixDisplay.from_predictions(
-        y_resampled, predicted_all, ax=ax_conf_all[0], cmap="Blues"
+        y_resampled, predicted_all, ax=ax_conf[1], cmap="Blues"
     )
-    ax_conf_all[0].set_title("Confusion Matrix (Raw)")
-
-    ConfusionMatrixDisplay.from_predictions(
-        y_resampled, predicted_all, normalize="true", ax=ax_conf_all[1], cmap="Blues"
-    )
-    ax_conf_all[1].set_title("Confusion Matrix (Normalized)")
+    ax_conf[1].set_title("ALL data")
 
     # Save Confusion Matrix Plot for test data
-    conf_matrix_file_all = os.path.join(
-        "output_results/subset/plots", f"conf_matrix_all_{neurons}.png"
+    conf_matrix_file = os.path.join(
+        "output_results/subset/plots", f"conf_matrix_all_and_test_{neurons}.png"
     )
-    fig_conf_all.savefig(conf_matrix_file_all)
-    plt.close(fig_conf_all)
-    log_message(f"Confusion Matrix plot for all data saved to: {conf_matrix_file_all}")
+    fig_conf.savefig(conf_matrix_file)
+    plt.close(fig_conf)
+    log_message(f"Confusion Matrix plot for all data saved to: {conf_matrix_file}")
 
 # Save the loss and accuracy plots
 loss_accuracy_plot_file = "output_results/subset/plots/loss_accuracy_plot.png"
