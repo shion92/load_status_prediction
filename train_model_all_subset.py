@@ -38,11 +38,6 @@ def log_message(message):
 
 # Load and Preprocess the Data
 file_path = "data/train.csv"  # Update the path if necessary
-try:
-    df = pd.read_csv(file_path)
-except FileNotFoundError:
-    log_message(f"File not found: {file_path}")
-    raise
 
 # Step 3: Feature Engineering
 # Mapping loan_grade to numerical values

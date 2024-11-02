@@ -160,11 +160,11 @@ def build_dnn_model(input_dim, num_layers, neurons, activation):
 # Hyperparameters
 num_layers_options = [2, 3, 5]
 neurons = 15
-epochs = 500
+epochs = 2000
 batch_size = 128
 activation_options = ["relu", "sigmoid"]
 learning_rate = 0.0001
-patience = 100
+patience = 50
 
 # Plotting Setup
 fig, axes = plt.subplots(len(num_layers_options), 2, figsize=(20, 15))
@@ -216,7 +216,7 @@ for i, num_layers in enumerate(num_layers_options):
         )
 
         # Plot Loss
-        axes[i, 0].plot(history.history["loss"], label="Training Loss")
+        axes[i, 1].plot(history.history["loss"], label="Training Loss")
         axes[i, 0].plot(history.history["val_loss"], label="Validation Loss")
         axes[i, 0].set_title(f"Loss for {num_layers} Layers, {activation} Activation")
         axes[i, 0].set_xlabel("Epochs")
